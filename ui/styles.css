@@ -1,0 +1,233 @@
+/* Estilos personalizados para el Robot de Cocina */
+
+/* Reset y estilos base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100dvh;
+    overflow-x: hidden;
+}
+
+/* Contenedor principal */
+.nicegui-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Tarjetas mejoradas */
+.q-card {
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: white;
+}
+
+.q-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Header personalizado */
+.q-header {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+}
+
+/* Botones mejorados */
+.q-btn {
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.3px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.q-btn:hover:not([disabled]) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.q-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Selectores */
+.q-select {
+    border-radius: 10px;
+}
+
+.q-field--outlined .q-field__control {
+    border-radius: 10px;
+}
+
+/* Área de texto para logs */
+.q-textarea textarea {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    background-color: #f8fafc;
+    color: #1e293b;
+    border-radius: 10px;
+}
+
+/* Barra de progreso */
+.q-linear-progress {
+    height: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.q-linear-progress__track {
+    background-color: #e2e8f0;
+}
+
+/* Separadores */
+.q-separator {
+    margin: 1.5rem 0;
+    background-color: #e2e8f0;
+}
+
+/* Inputs */
+.q-field--outlined .q-field__control:before {
+    border-color: #cbd5e1;
+}
+
+.q-field--outlined .q-field__control:hover:before {
+    border-color: #3b82f6;
+}
+
+.q-field--outlined.q-field--focused .q-field__control:before {
+    border-color: #3b82f6;
+    border-width: 2px;
+}
+
+/* Notificaciones */
+.q-notification {
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+}
+
+/* Diálogos */
+.q-dialog__inner {
+    padding: 2rem;
+}
+
+.q-dialog .q-card {
+    max-width: 90vw;
+    border-radius: 16px;
+}
+
+/* Scrollbar personalizado */
+.q-scrollarea__thumb {
+    background-color: #94a3b8;
+    border-radius: 4px;
+}
+
+.q-scrollarea__thumb:hover {
+    background-color: #64748b;
+}
+
+/* Estados de hover */
+.hover\:bg-red-50:hover {
+    background-color: #fef2f2;
+}
+
+/* Animaciones */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.q-card {
+    animation: fadeInUp 0.4s ease-out;
+}
+
+@media (max-width: 768px) {
+    .q-card {
+        animation: none !important;
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nicegui-content {
+        padding: 1rem;
+    }
+    
+    .q-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Iconos */
+.q-icon {
+    transition: transform 0.2s ease;
+}
+
+.q-btn:hover .q-icon {
+    transform: scale(1.1);
+}
+
+/* Mejoras de contraste */
+.text-gray-800 {
+    color: #1f2937;
+}
+
+.text-gray-700 {
+    color: #374151;
+}
+
+.text-gray-600 {
+    color: #4b5563;
+}
+
+/* Badge personalizado */
+.q-badge {
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+}
+
+/* Gradientes para headers */
+.bg-gradient-to-r {
+    background-image: linear-gradient(to right, var(--tw-gradient-stops));
+}
+
+/* Efectos de glassmorphism */
+.glass-effect {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Sombras personalizadas */
+.shadow-xl {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Transiciones suaves */
+* {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* RESPONSIVE DEL CONTENEDOR PRINCIPAL */
+.thermomix-body {
+    width: min(900px, 95vw) !important;
+}

@@ -1,50 +1,63 @@
 """
-Robot de Cocina - Aplicación Principal
-Punto de entrada del sistema
+THERMOMIX - Punto de Entrada Principal
+Aplicación completa con interfaz modernizada
 """
 
 from nicegui import ui, app
+from ui.interfaz import crear_interfaz_principal
 from database.init_db import inicializar_base_datos
-from ui.interfaz import crear_interfaz
+from ui.state.app_state import app_state
 
+# ===== INICIALIZACIÓN =====
+print("Iniciando Thermomix...")
 
-def main():
-    """Función principal que inicializa la aplicación"""
-    print("=" * 50)
-    print(" ROBOT DE COCINA - SISTEMA DE CONTROL")
-    print("=" * 50)
-    
-    # Inicializar base de datos
-    print("\n[1] Inicializando base de datos...")
-    inicializar_base_datos()
-    print("✓ Base de datos lista")
-    
-    # Crear interfaz
-    print("\n[2] Creando interfaz gráfica...")
-    crear_interfaz()
-    print("✓ Interfaz creada")
+# Inicializar base de datos (incluye migración a v2.0)
+inicializar_base_datos()
 
-    # Servir archivos estáticos (CSS)
-    app.add_static_files('/static', 'ui')
-    
-    # ⭐ FAVICON PERSONALIZADO THERMOMIX ⭐
-    ui.add_head_html('''
-        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230f172a'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%233b82f6' stroke='%2393c5fd' stroke-width='3'/%3E%3Cpath d='M35 45 L50 35 L65 45 M50 35 L50 65 M40 55 Q50 60 60 55' stroke='%23e2e8f0' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='70' r='3' fill='%2310b981'/%3E%3C/svg%3E">
+# ===== CONFIGURACIÓN DE LA APLICACIÓN =====
+@ui.page('/')
+def main_page():
+    """Página principal de la aplicación"""
+
+    # Detectar preferencia de modo oscuro del navegador
+    ui.run_javascript('''
+        const darkMode = localStorage.getItem('thermomix_dark_mode') === 'true' ||
+                        window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+        }
     ''')
-    
-    print("\n[3] Iniciando servidor...")
-    print("=" * 50)
-    print("🌐 Accede a: http://localhost:8080")
-    print("=" * 50)
-    
-    # Iniciar servidor NiceGUI
+
+    # Crear interfaz principal
+    crear_interfaz_principal()
+
+
+# ===== METADATA DE LA APP =====
+# app.add_static_files('/assets', 'assets')  # Deshabilitado - agregar si necesitas assets
+
+
+if __name__ in {"__main__", "__mp_main__"}:
+    print("\n" + "="*60)
+    print("  THERMOMIX")
+    print("="*60)
+    print("\n Características:")
+    print("  ✓ Selector de modo manual (10 modos de cocción)")
+    print("  ✓ Navegador de recetas con grid responsivo")
+    print("  ✓ Wizard de creación de recetas (3 pasos)")
+    print("  ✓ Panel de ejecución paso a paso")
+    print("  ✓ Sistema de favoritos")
+    print("  ✓ Modo oscuro con toggle")
+    print("  ✓ Diseño moderno con Tailwind CSS")
+    print("  ✓ Interfaz responsive (mobile/tablet/desktop)")
+    print("  ✓ Gestión de ingredientes")
+    print("\n🌐 Abriendo servidor...")
+    print("="*60 + "\n")
+
     ui.run(
-        title="Robot de Cocina",
+        title='Thermomix NICEGUI',
         port=8080,
-        reload=False,
-        show=True
+        reload=False,  # DESACTIVADO para evitar errores de "client deleted"
+        show=True,
+        favicon='🍹'  # Icono de batido/licuadora
     )
-
-
-if __name__ == "__main__":
-    main()

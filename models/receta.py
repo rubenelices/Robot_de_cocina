@@ -14,11 +14,11 @@ class Receta:
     en orden para crear un plato.
     """
     
-    def __init__(self, id: int, nombre: str, descripcion: str = "", 
+    def __init__(self, id: int, nombre: str, descripcion: str = "",
                  es_base: bool = False):
         """
         Inicializa una receta
-        
+
         Args:
             id: Identificador único
             nombre: Nombre de la receta
@@ -30,6 +30,7 @@ class Receta:
         self._descripcion = descripcion
         self._es_base = es_base
         self._procesos: List[ProcesoCocina] = []
+        self._favorito = False  # Nuevo en v2.0
     
     @property
     def id(self) -> int:
@@ -46,6 +47,16 @@ class Receta:
         """Descripción de la receta"""
         return self._descripcion
     
+    @property
+    def favorito(self) -> bool:
+        """Indica si la receta está marcada como favorita"""
+        return self._favorito
+
+    @favorito.setter
+    def favorito(self, value: bool):
+        """Establece el estado de favorito"""
+        self._favorito = value
+
     @property
     def es_base(self) -> bool:
         """Indica si es una receta preinstalada"""

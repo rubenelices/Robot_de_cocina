@@ -2,8 +2,11 @@
 Módulo de gestión de base de datos SQLite
 """
 import sqlite3
+import os
 from typing import List, Dict, Optional
-from main import DATABASE_PATH
+
+# Ruta de la base de datos (en el directorio raíz del proyecto)
+DATABASE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'robot_cocina.db')
 
 class DatabaseManager:
     """Gestor de conexiones y operaciones con la base de datos"""

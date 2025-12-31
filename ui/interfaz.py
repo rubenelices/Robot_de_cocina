@@ -1,986 +1,1259 @@
 """
-Interfaz gráfica del Robot de Cocina usando NiceGUI
-Diseño tipo Thermomix con BOTÓN ÚNICO CONTEXTUAL
-Sistema 100% MANUAL - Paso a paso
-VERSIÓN PROFESIONAL - Bug de detención CORREGIDO
+THERMOMIX - Interfaz Principal
+Diseño premium tipo Thermomix real con todas las funcionalidades
 """
+
 from nicegui import ui, app
 from controllers.robot_controller import RobotController
 from controllers.recetas_controller import RecetasController
-from main import (
-    ESTADO_APAGADO, ESTADO_ENCENDIDO,
-    ESTADO_EJECUTANDO, ESTADO_DETENIDO,
-    COLOR_APAGADO, COLOR_ENCENDIDO,
-    COLOR_EJECUTANDO, COLOR_DETENIDO
-)
+from ui.state.app_state import app_state
+from typing import Optional
+import asyncio
+import time
 
-# Controladores globales
+
+# ===== PALETA DE COLORES THERMOMIX =====
+class ThermomixColors:
+    """Paleta de colores premium tipo Thermomix TM6"""
+    BG_PRIMARY = '#0a0e27'
+    BG_SECONDARY = '#1a1f3a'
+    BG_CARD = '#1e2640'
+    BG_LCD = '#0d1117'
+
+    CYAN = '#00d9ff'
+    MAGENTA = '#ff006e'
+    GREEN = '#00ff88'
+    ORANGE = '#ff9500'
+    PURPLE = '#a855f7'
+    RED = '#ef4444'
+
+    LED_OFF = '#ff3b3b'
+    LED_READY = '#00ff88'
+    LED_RUNNING = '#00d9ff'
+    LED_PAUSED = '#ff9500'
+
+    TEXT_PRIMARY = '#ffffff'
+    TEXT_SECONDARY = '#a8b2d1'
+    TEXT_LCD = '#00d9ff'
+
+    BTN_POWER = 'linear-gradient(135deg, #00ff88 0%, #00d9a0 100%)'
+    BTN_STOP = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+    BTN_EXECUTE = 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)'
+    BTN_ACTION = 'linear-gradient(135deg, #00d9ff 0%, #0099ff 100%)'
+    BTN_SECONDARY = 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)'
+    BTN_DANGER = 'linear-gradient(135deg, #ff006e 0%, #c9184a 100%)'
+
+    BORDER_PRIMARY = '#2a3f5f'
+    BORDER_ACCENT = '#00d9ff'
+    SHADOW_GLOW = '0 0 30px rgba(0, 217, 255, 0.4)'
+    SHADOW_GLOW_GREEN = '0 0 30px rgba(0, 255, 136, 0.4)'
+
+
+COLORS = ThermomixColors()
+
+
+# ===== ESTILOS CSS GLOBALES =====
+def get_global_styles() -> str:
+    return f'''
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+
+        body {{
+            background: {COLORS.BG_PRIMARY};
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: {COLORS.TEXT_PRIMARY};
+            min-height: 100vh;
+        }}
+
+        .nicegui-content {{
+            display: flex !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            min-height: 100vh !important;
+            padding: 1rem;
+            background: {COLORS.BG_PRIMARY};
+        }}
+
+        .thermomix-container {{
+            background: linear-gradient(145deg, {COLORS.BG_SECONDARY}, {COLORS.BG_PRIMARY});
+            border: 3px solid {COLORS.BORDER_PRIMARY};
+            border-radius: 40px;
+            padding: 2rem;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.7), {COLORS.SHADOW_GLOW};
+            max-width: 1200px;
+            width: 95vw;
+            margin: 1rem auto;
+        }}
+
+        .lcd-screen {{
+            background: {COLORS.BG_LCD};
+            border: 3px solid {COLORS.BORDER_ACCENT};
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: inset 0 4px 12px rgba(0,0,0,0.9), {COLORS.SHADOW_GLOW};
+            min-height: 120px;
+        }}
+
+        .log-screen {{
+            background: {COLORS.BG_LCD};
+            border: 2px solid {COLORS.BORDER_PRIMARY};
+            border-radius: 16px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: {COLORS.CYAN};
+            max-height: 200px;
+            overflow-y: auto;
+        }}
+
+        .btn-round {{
+            border-radius: 50% !important;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }}
+
+        .btn-round:hover:not([disabled]) {{
+            transform: translateY(-3px) scale(1.05);
+            filter: brightness(1.15);
+        }}
+
+        .btn-round:active:not([disabled]) {{
+            transform: translateY(2px) scale(0.98);
+        }}
+
+        /* Bordes de colores para botones */
+        .btn-border-cyan {{
+            border: 4px solid {COLORS.CYAN} !important;
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.5) !important;
+        }}
+
+        .btn-border-green {{
+            border: 4px solid {COLORS.GREEN} !important;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5) !important;
+        }}
+
+        .btn-border-purple {{
+            border: 4px solid {COLORS.PURPLE} !important;
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.5) !important;
+        }}
+
+        .btn-border-red {{
+            border: 4px solid {COLORS.RED} !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5) !important;
+        }}
+
+        .btn-border-gray {{
+            border: 4px solid #6b7280 !important;
+            box-shadow: 0 0 15px rgba(107, 114, 128, 0.3) !important;
+        }}
+
+        @keyframes led-pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.5; }}
+        }}
+
+        .menu-card {{
+            background: {COLORS.BG_CARD};
+            border: 2px solid {COLORS.BORDER_PRIMARY};
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }}
+
+        .menu-card:hover {{
+            border-color: {COLORS.CYAN};
+            box-shadow: {COLORS.SHADOW_GLOW};
+            transform: translateY(-4px);
+        }}
+
+        .recipe-card {{
+            background: {COLORS.BG_CARD};
+            border: 2px solid {COLORS.BORDER_PRIMARY};
+            border-radius: 16px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }}
+
+        .recipe-card:hover {{
+            border-color: {COLORS.CYAN};
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+        }}
+
+        .mode-btn {{
+            background: {COLORS.BG_CARD};
+            border: 2px solid {COLORS.BORDER_PRIMARY};
+            border-radius: 12px;
+            padding: 0.75rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }}
+
+        .mode-btn:hover {{
+            border-color: {COLORS.CYAN};
+            background: rgba(0, 217, 255, 0.1);
+        }}
+
+        .mode-btn.selected {{
+            border-color: {COLORS.CYAN};
+            background: rgba(0, 217, 255, 0.2);
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.4);
+        }}
+
+        .progress-bar {{
+            width: 100%;
+            height: 30px;
+            background: {COLORS.BG_CARD};
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid {COLORS.BORDER_PRIMARY};
+            position: relative;
+        }}
+
+        .progress-fill {{
+            height: 100%;
+            background: linear-gradient(90deg, {COLORS.CYAN}, {COLORS.GREEN});
+            transition: width 0.1s linear;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: white;
+        }}
+
+        ::-webkit-scrollbar {{ width: 8px; }}
+        ::-webkit-scrollbar-track {{ background: {COLORS.BG_SECONDARY}; border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb {{ background: {COLORS.BORDER_PRIMARY}; border-radius: 4px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: {COLORS.CYAN}; }}
+    </style>
+    '''
+
+
+# ===== CONTROLADORES GLOBALES =====
 robot_ctrl = RobotController()
 recetas_ctrl = RecetasController()
 
-# Referencias a elementos UI
+
+# ===== VARIABLES DE ESTADO =====
+main_content = None
 estado_led = None
 estado_texto = None
-pantalla_paso = None
-pantalla_info = None
-barra_progreso = None
-label_progreso = None
-log_area = None
-boton_accion_principal = None
-label_accion = None
-boton_anterior = None
+log_container = None
+logs = []
 
-# Estado de la receta actual
-receta_actual = None
-paso_actual = 0
-en_ejecucion = False
-paso_completado = False
 
-def agregar_log(mensaje: str):
-    """Agrega un mensaje al log"""
-    if log_area:
-        valor_actual = log_area.value
-        lineas = valor_actual.split('\n')
-        lineas.append(mensaje)
-        if len(lineas) > 15:
-            lineas = lineas[-15:]
-        log_area.value = '\n'.join(lineas)
+# ===== FUNCIÓN PRINCIPAL =====
+def crear_interfaz_principal():
+    """Crea la interfaz principal estilo Thermomix"""
+    global main_content
 
-def actualizar_estado_ui(estado: str):
-    """Actualiza los elementos UI según el estado"""
-    actualizar_boton_accion()
+    ui.add_head_html(get_global_styles())
 
-def actualizar_progreso(paso_num: int, total_pasos: int):
-    """Actualiza la barra de progreso"""
-    if barra_progreso and label_progreso:
-        if total_pasos > 0:
-            progreso = paso_num / total_pasos
-            barra_progreso.value = round(progreso, 2)
-        label_progreso.text = f'{paso_num}/{total_pasos}'
-        barra_progreso.update()
-        label_progreso.update()
+    # Contenedor principal centrado tipo Thermomix
+    with ui.element('div').classes('thermomix-container'):
+        # Header con título y LED
+        crear_header_thermomix()
 
-def actualizar_pantalla_estado(estado: str, mensaje: str = ''):
-    """Actualiza la pantalla principal con el estado"""
+        # Contenido principal (dinámico)
+        main_content = ui.column().classes('w-full gap-4 mt-4')
+
+        with main_content:
+            renderizar_vista_actual()
+
+
+def crear_header_thermomix():
+    """Header estilo Thermomix con LED y título"""
+    global estado_led, estado_texto
+
+    with ui.row().classes('w-full items-center justify-between mb-4'):
+        # Logo y título
+        with ui.row().classes('items-center gap-3'):
+            ui.icon('blender').style(f'font-size: 2.5rem; color: {COLORS.CYAN};')
+            with ui.column().classes('gap-0'):
+                ui.label('THERMOMIX').style(
+                    f'font-size: 1.8rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; '
+                    f'text-shadow: 0 0 10px {COLORS.CYAN};'
+                )
+                ui.label('Control Inteligente').style(
+                    f'font-size: 0.85rem; color: {COLORS.TEXT_SECONDARY};'
+                )
+
+        # LED de estado y botón power
+        with ui.row().classes('items-center gap-4'):
+            # LED
+            with ui.row().classes('items-center gap-2'):
+                estado_led = ui.element('div')
+                actualizar_led()
+
+                estado_texto = ui.label('').style(
+                    f'font-size: 1rem; font-weight: bold; color: {COLORS.TEXT_LCD}; '
+                    f'text-transform: uppercase; letter-spacing: 2px;'
+                )
+
+            # Botón power
+            crear_boton_power_header()
+
+
+def actualizar_led():
+    """Actualiza el LED según el estado del robot"""
+    global estado_led, estado_texto
+
+    if robot_ctrl.esta_encendido:
+        if app_state.en_ejecucion:
+            color = COLORS.LED_RUNNING
+            texto = 'EJECUTANDO'
+            animation = 'animation: led-pulse 1s infinite;'
+        else:
+            color = COLORS.LED_READY
+            texto = 'LISTO'
+            animation = ''
+    else:
+        color = COLORS.LED_OFF
+        texto = 'APAGADO'
+        animation = ''
+
     if estado_led:
-        colores = {
-            ESTADO_APAGADO: 'background: #dc2626; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);',
-            ESTADO_ENCENDIDO: 'background: #16a34a; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);',
-            ESTADO_EJECUTANDO: 'background: #2563eb; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);',
-            ESTADO_DETENIDO: 'background: #ea580c; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);'
-        }
-        estado_led.style(f'width: 24px; height: 24px; border-radius: 50%; {colores.get(estado, "background: #6b7280;")}')
-    
+        estado_led.style(
+            f'width: 20px; height: 20px; border-radius: 50%; '
+            f'background: {color}; '
+            f'box-shadow: 0 0 15px {color}, 0 0 25px {color}; '
+            f'{animation}'
+        )
+
     if estado_texto:
-        textos = {
-            ESTADO_APAGADO: 'APAGADO',
-            ESTADO_ENCENDIDO: 'LISTO',
-            ESTADO_EJECUTANDO: 'EJECUTANDO',
-            ESTADO_DETENIDO: 'PAUSADO'
-        }
-        estado_texto.text = textos.get(estado, 'DESCONOCIDO')
-    
-    if pantalla_info and mensaje:
-        pantalla_info.text = mensaje
+        estado_texto.text = texto
 
-def actualizar_pantalla_paso():
-    """Actualiza la pantalla con el paso actual"""
-    global receta_actual, paso_actual
-    
-    if not receta_actual:
-        if pantalla_paso:
-            pantalla_paso.text = 'No hay receta cargada'
-        if pantalla_info:
-            pantalla_info.text = 'Selecciona una receta para comenzar'
-        actualizar_boton_accion()
-        return
-    
-    total = receta_actual.get_num_pasos()
-    
-    if paso_actual >= total:
-        if pantalla_paso:
-            pantalla_paso.text = '¡RECETA COMPLETADA!'
-        if pantalla_info:
-            pantalla_info.text = f'{receta_actual.nombre} terminada con éxito'
-        actualizar_progreso(total, total)
-        actualizar_boton_accion()
-        return
-    
-    proceso = receta_actual.procesos[paso_actual]
-    
-    if pantalla_paso:
-        pantalla_paso.text = f'PASO {paso_actual + 1}/{total}'
-    
-    if pantalla_info:
-        info = f'{proceso.get_descripcion()}\n'
-        info += f'Duración: {proceso.get_duracion()}s'
-        if proceso.parametros:
-            info += f'\nParámetros: {proceso.parametros}'
-        pantalla_info.text = info
-    
-    actualizar_progreso(paso_actual, total)
-    
-    if boton_anterior:
-        boton_anterior.enabled = paso_actual > 0
-    
-    actualizar_boton_accion()
 
-def actualizar_boton_accion():
-    """Actualiza el botón de acción principal según el contexto"""
-    global boton_accion_principal, label_accion, en_ejecucion, paso_completado, receta_actual, paso_actual
-    
-    if not boton_accion_principal or not label_accion:
-        return
-    
-    # Estado: Robot apagado o sin receta
-    if not robot_ctrl.esta_encendido or not receta_actual:
-        boton_accion_principal.enabled = False
-        boton_accion_principal._props['icon'] = 'power_off'
-        boton_accion_principal.style(
-            'width: 140px; height: 140px; background: #6b7280; '
-            'box-shadow: 0 8px 0 #6b7280dd, 0 12px 24px rgba(0,0,0,0.4); opacity: 0.5;'
-        )
-        label_accion.text = 'SIN RECETA'
-        label_accion.update()
-        boton_accion_principal.update()
-        return
-    
-    # Receta completada
-    if paso_actual >= receta_actual.get_num_pasos():
-        boton_accion_principal.enabled = False
-        boton_accion_principal._props['icon'] = 'check_circle'
-        boton_accion_principal.style(
-            'width: 140px; height: 140px; background: #10b981; '
-            'box-shadow: 0 8px 0 #10b981dd, 0 12px 24px rgba(0,0,0,0.4); opacity: 0.7;'
-        )
-        label_accion.text = 'TERMINADO'
-        label_accion.update()
-        boton_accion_principal.update()
-        return
-    
-    # Estado: Ejecutando
-    if en_ejecucion:
-        boton_accion_principal.enabled = True
-        boton_accion_principal._props['icon'] = 'stop'
-        boton_accion_principal.style(
-            'width: 140px; height: 140px; background: #ef4444; '
-            'box-shadow: 0 8px 0 #ef4444dd, 0 12px 24px rgba(0,0,0,0.4);'
-        )
-        label_accion.text = 'DETENER'
-        label_accion.update()
-        boton_accion_principal.update()
-        return
-    
-    # Estado: Paso completado
-    if paso_completado:
-        boton_accion_principal.enabled = True
-        boton_accion_principal._props['icon'] = 'arrow_forward'
-        boton_accion_principal.style(
-            'width: 140px; height: 140px; background: #3b82f6; '
-            'box-shadow: 0 8px 0 #3b82f6dd, 0 12px 24px rgba(0,0,0,0.4); '
-            'animation: pulse 1.5s ease-in-out infinite;'
-        )
-        label_accion.text = 'SIGUIENTE'
-        label_accion.update()
-        boton_accion_principal.update()
-        return
-    
-    # Estado: Listo para ejecutar
-    boton_accion_principal.enabled = True
-    boton_accion_principal._props['icon'] = 'play_arrow'
-    boton_accion_principal.style(
-        'width: 140px; height: 140px; background: #8b5cf6; '
-        'box-shadow: 0 8px 0 #8b5cf6dd, 0 12px 24px rgba(0,0,0,0.4); opacity: 1;'
-    )
-    label_accion.text = 'COCINAR'
-    label_accion.update()
-    boton_accion_principal.update()
+def crear_boton_power_header():
+    """Botón de encendido/apagado en el header"""
+    es_encendido = robot_ctrl.esta_encendido
 
-def accion_principal_click():
-    """Handler único que decide qué hacer según el estado actual"""
-    global en_ejecucion, paso_completado, receta_actual, paso_actual
-    
-    if en_ejecucion:
-        on_parar()
-        return
-    
-    if paso_completado:
-        siguiente_paso()
-        return
-    
-    ejecutar_paso_actual()
+    if es_encendido:
+        btn = ui.button(icon='power_off', on_click=on_apagar).props('round')
+        btn.style(
+            f'background: {COLORS.BTN_STOP}; color: white; '
+            f'width: 50px; height: 50px; font-size: 1.5rem;'
+        )
+    else:
+        btn = ui.button(icon='power_settings_new', on_click=on_encender).props('round')
+        btn.style(
+            f'background: {COLORS.BTN_POWER}; color: white; '
+            f'width: 50px; height: 50px; font-size: 1.5rem;'
+        )
+
 
 def on_encender():
-    """Handler para encender el robot"""
+    """Enciende el robot"""
     robot_ctrl.encender()
-    actualizar_pantalla_estado(ESTADO_ENCENDIDO, 'Sistema listo')
-    actualizar_boton_accion()
-    ui.notify('Robot encendido', type='positive')
+    app_state.robot_encendido = True
+    app_state.robot_estado = 'encendido'
+    agregar_log('🟢 Robot encendido')
+    ui.notify('Robot encendido', type='positive', position='top')
+    # Refrescar la interfaz recargando la página
+    ui.navigate.to('/')
+
 
 def on_apagar():
-    """Handler para apagar el robot"""
-    global receta_actual, paso_actual, paso_completado
+    """Apaga el robot"""
     robot_ctrl.apagar()
-    receta_actual = None
-    paso_actual = 0
-    paso_completado = False
-    actualizar_pantalla_estado(ESTADO_APAGADO, 'Sistema apagado')
-    actualizar_pantalla_paso()
-    if barra_progreso:
-        barra_progreso.value = 0
-    if label_progreso:
-        label_progreso.text = '0/0'
-    actualizar_boton_accion()
-    ui.notify('Robot apagado', type='warning')
+    app_state.robot_encendido = False
+    app_state.robot_estado = 'apagado'
+    app_state.reset_execution()
+    agregar_log('🔴 Robot apagado')
+    ui.notify('Robot apagado', type='warning', position='top')
+    # Refrescar la interfaz recargando la página
+    ui.navigate.to('/')
 
-def on_parar():
-    """Handler para parar ejecución - CORREGIDO"""
-    global paso_completado, en_ejecucion
-    
-    # ⭐ CORRECCIÓN: Resetear flags correctamente ⭐
-    en_ejecucion = False
-    paso_completado = False
-    
-    robot_ctrl.parar()
-    actualizar_pantalla_estado(ESTADO_DETENIDO, 'Paso interrumpido')
-    actualizar_boton_accion()
-    ui.notify('Ejecución detenida', type='warning')
 
-def seleccionar_receta():
-    """Muestra el menú de selección de recetas - PROFESIONAL"""
+# ===== NAVEGACIÓN =====
+def navegar_a(vista: str):
+    """Navega a una vista específica"""
+    app_state.vista_actual = vista
+    # Refrescar la interfaz recargando la página
+    ui.navigate.to('/')
+
+
+def renderizar_vista_actual():
+    """Renderiza la vista según app_state.vista_actual"""
+    vista = app_state.vista_actual
+
+    if vista == 'dashboard':
+        renderizar_dashboard()
+    elif vista == 'browser':
+        renderizar_browser()
+    elif vista == 'wizard':
+        renderizar_wizard()
+    elif vista == 'config':
+        renderizar_config()
+    elif vista == 'celebracion':
+        renderizar_celebracion()
+    else:
+        renderizar_dashboard()
+
+
+# ===== SISTEMA DE LOGS =====
+def agregar_log(mensaje: str):
+    """Agrega un mensaje al log"""
+    global logs, log_container
+    timestamp = time.strftime('%H:%M:%S')
+    logs.append(f'[{timestamp}] {mensaje}')
+    if len(logs) > 50:
+        logs.pop(0)
+
+    # Actualizar display si existe
+    if log_container:
+        try:
+            log_container.clear()
+            with log_container:
+                for log in logs[-10:]:
+                    ui.label(log).style(f'color: {COLORS.CYAN}; font-size: 0.85rem;')
+        except:
+            pass  # Ignorar si el container fue eliminado
+
+
+# ===== VISTA: DASHBOARD (REDISEÑADO - CENTRADO) =====
+def renderizar_dashboard():
+    """Dashboard principal con layout centrado y simétrico"""
+    global log_container
+
+    # Layout centrado verticalmente
+    with ui.column().classes('w-full items-center gap-4'):
+
+        # Si hay receta activa, mostrar panel de ejecución
+        if app_state.receta_actual:
+            renderizar_panel_receta_activa()
+        else:
+            # Pantalla LCD principal (sin receta)
+            with ui.element('div').classes('lcd-screen').style('width: 100%; max-width: 600px; text-align: center;'):
+                ui.label('SIN RECETA').style(
+                    f'font-size: 1.8rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY};'
+                )
+                ui.label('Selecciona una receta para comenzar').style(
+                    f'font-size: 1rem; color: {COLORS.TEXT_SECONDARY}; margin-top: 0.5rem;'
+                )
+
+        # Botones principales (siempre centrados)
+        with ui.row().classes('justify-center gap-6 mt-4'):
+            crear_boton_grande(
+                icon='menu_book',
+                label='RECETAS',
+                color=COLORS.BTN_ACTION,
+                border_class='btn-border-cyan',
+                on_click=lambda: navegar_a('browser'),
+                enabled=True
+            )
+
+            crear_boton_grande(
+                icon='add_circle',
+                label='CREAR',
+                color=COLORS.BTN_POWER,
+                border_class='btn-border-green',
+                on_click=lambda: navegar_a('wizard'),
+                enabled=True
+            )
+
+            crear_boton_grande(
+                icon='settings',
+                label='CONFIG',
+                color=COLORS.BTN_SECONDARY,
+                border_class='btn-border-gray',
+                on_click=lambda: navegar_a('config'),
+                enabled=True
+            )
+
+        # Panel de logs (centrado y más ancho)
+        with ui.element('div').classes('log-screen').style('width: 100%; max-width: 800px; margin-top: 1.5rem;'):
+            ui.label('📋 REGISTRO DE ACTIVIDAD').style(
+                f'font-size: 0.9rem; font-weight: bold; color: {COLORS.ORANGE}; margin-bottom: 0.5rem;'
+            )
+            log_container = ui.column().classes('w-full gap-1')
+            for log in logs[-10:]:
+                ui.label(log).style(f'color: {COLORS.CYAN}; font-size: 0.85rem;')
+
+
+def renderizar_panel_receta_activa():
+    """Panel cuando hay una receta cargada"""
+    receta = app_state.receta_actual
+    total = receta.get_num_pasos()
+    paso_num = app_state.paso_actual + 1
+
+    # Panel principal de la receta
+    with ui.element('div').classes('lcd-screen').style('width: 100%; max-width: 700px; text-align: center;'):
+        ui.label(receta.nombre).style(
+            f'font-size: 1.5rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; margin-bottom: 0.5rem;'
+        )
+
+        if app_state.paso_actual < total:
+            proceso = receta.procesos[app_state.paso_actual]
+
+            ui.label(f'PASO {paso_num} DE {total}').style(
+                f'font-size: 1rem; color: {COLORS.CYAN}; font-weight: bold; margin-bottom: 0.5rem;'
+            )
+            ui.label(proceso.get_descripcion()).style(
+                f'font-size: 1.1rem; color: {COLORS.TEXT_SECONDARY}; margin-bottom: 0.5rem;'
+            )
+
+            with ui.row().classes('justify-center gap-4'):
+                ui.label(f'⏱ {proceso.get_duracion()}s').style(
+                    f'font-size: 0.9rem; color: {COLORS.TEXT_SECONDARY};'
+                )
+                modo_recomendado = proceso.__class__.__name__
+                ui.label(f'💡 {modo_recomendado}').style(
+                    f'font-size: 0.9rem; color: {COLORS.ORANGE};'
+                )
+
+    # Barra de progreso de la receta
+    progreso_receta = (app_state.paso_actual / total * 100) if total > 0 else 0
+    with ui.element('div').classes('progress-bar').style('width: 100%; max-width: 700px; position: relative; margin-top: 1rem;'):
+        ui.element('div').classes('progress-fill').style(f'width: {progreso_receta:.1f}%;')
+        ui.label(f'Progreso: {progreso_receta:.1f}%').style(
+            'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); '
+            'color: white; font-weight: bold; z-index: 10;'
+        )
+
+    # Panel de ejecución en tiempo real
+    if app_state.en_ejecucion:
+        crear_panel_ejecucion_activa()
+    elif app_state.paso_actual < total:
+        # Selector de modos y botones de control
+        if not app_state.paso_completado:
+            renderizar_selector_modos()
+
+        # Botones de acción
+        with ui.row().classes('justify-center gap-4 mt-4'):
+            if app_state.paso_completado:
+                crear_boton_grande(
+                    icon='arrow_forward',
+                    label='SIGUIENTE',
+                    color=COLORS.BTN_ACTION,
+                    border_class='btn-border-cyan',
+                    on_click=siguiente_paso,
+                    enabled=True
+                )
+            else:
+                puede_ejecutar = app_state.modo_seleccionado is not None and robot_ctrl.esta_encendido
+                crear_boton_grande(
+                    icon='play_arrow',
+                    label='EJECUTAR',
+                    color=COLORS.BTN_EXECUTE if puede_ejecutar else COLORS.BTN_SECONDARY,
+                    border_class='btn-border-purple' if puede_ejecutar else 'btn-border-gray',
+                    on_click=iniciar_ejecucion_paso,
+                    enabled=puede_ejecutar
+                )
+
+        # Botón cancelar
+        ui.button('✕ Cancelar Receta', on_click=cancelar_receta).props('flat').style(
+            f'color: {COLORS.MAGENTA}; margin-top: 1rem;'
+        )
+
+
+def renderizar_selector_modos():
+    """Selector de modos de cocción"""
+    with ui.element('div').classes('lcd-screen').style('width: 100%; max-width: 700px; margin-top: 1rem;'):
+        ui.label('SELECCIONA EL MODO:').style(
+            f'font-size: 1rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem; text-align: center;'
+        )
+
+        modos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
+        iconos = {'Picar': '🔪', 'Rallar': '🧀', 'Triturar': '⚡', 'Trocear': '✂️', 'Amasar': '🥖',
+                  'Hervir': '🔥', 'Sofreir': '🍳', 'Vapor': '💨', 'PrepararPure': '🥔', 'Pesar': '⚖️'}
+
+        modo_recomendado = app_state.receta_actual.procesos[app_state.paso_actual].__class__.__name__
+
+        with ui.grid(columns=5).classes('w-full gap-2'):
+            for modo in modos:
+                is_selected = app_state.modo_seleccionado == modo
+                is_recommended = modo == modo_recomendado
+
+                btn_style = f'''
+                    background: {COLORS.BG_CARD if not is_selected else "rgba(0, 217, 255, 0.3)"};
+                    border: 2px solid {COLORS.CYAN if is_selected or is_recommended else COLORS.BORDER_PRIMARY};
+                    border-radius: 12px;
+                    padding: 0.5rem;
+                    cursor: pointer;
+                    {"box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);" if is_selected else ""}
+                '''
+
+                with ui.element('div').style(btn_style).on('click', lambda m=modo: seleccionar_modo(m)):
+                    with ui.column().classes('items-center gap-1'):
+                        ui.label(iconos.get(modo, '🔧')).style('font-size: 1.5rem;')
+                        ui.label(modo).style(f'font-size: 0.65rem; color: {COLORS.TEXT_PRIMARY}; font-weight: bold;')
+
+
+# ===== VISTA: CELEBRACIÓN =====
+def renderizar_celebracion():
+    """Pantalla de celebración al completar una receta"""
+    with ui.column().classes('w-full items-center gap-6'):
+        # Panel principal de celebración
+        with ui.element('div').classes('lcd-screen').style(
+            f'width: 100%; max-width: 600px; text-align: center; '
+            f'border-color: {COLORS.GREEN}; box-shadow: 0 0 30px {COLORS.GREEN};'
+        ):
+            ui.label('').style('font-size: 4rem; margin-bottom: 1rem;')
+
+            ui.label('¡RECETA COMPLETADA!').style(
+                f'font-size: 2rem; font-weight: bold; color: {COLORS.GREEN}; margin-bottom: 0.5rem;'
+            )
+
+            ui.label(app_state.nombre_receta_completada).style(
+                f'font-size: 1.3rem; color: {COLORS.TEXT_PRIMARY}; margin-bottom: 1rem;'
+            )
+
+            ui.label('¡Que aproveche!').style(
+                f'font-size: 1.5rem; font-weight: bold; color: {COLORS.ORANGE}; '
+                f'font-style: italic;'
+            )
+
+            ui.label('').style('font-size: 3rem; margin-top: 1rem;')
+
+        # Botón para volver al menú
+        ui.button('VOLVER AL MENÚ', icon='home', on_click=cerrar_celebracion).style(
+            f'background: {COLORS.BTN_ACTION}; color: white; padding: 1rem 2rem; '
+            f'font-size: 1.1rem; font-weight: bold; border-radius: 12px; margin-top: 1rem;'
+        )
+
+
+def cerrar_celebracion():
+    """Cierra la pantalla de celebración y vuelve al dashboard"""
+    app_state.mostrar_celebracion = False
+    app_state.nombre_receta_completada = ""
+    navegar_a('dashboard')
+
+
+def crear_boton_grande(icon: str, label: str, color: str, border_class: str, on_click, enabled: bool = True):
+    """Crea un botón grande estilo Thermomix con borde de color"""
+    with ui.column().classes('items-center gap-2'):
+        btn = ui.button(icon=icon, on_click=on_click if enabled else None).props('round').classes(f'btn-round {border_class}')
+        btn.style(
+            f'width: 100px; height: 100px; font-size: 2.5rem; '
+            f'background: {color if enabled else COLORS.BTN_SECONDARY}; color: white; '
+            f'opacity: {1 if enabled else 0.5};'
+        )
+        if not enabled:
+            btn.props('disable')
+
+        ui.label(label).style(
+            f'font-size: 0.85rem; font-weight: bold; color: {COLORS.TEXT_SECONDARY}; '
+            f'text-transform: uppercase; letter-spacing: 1px;'
+        )
+
+
+def seleccionar_modo(modo: str):
+    """Selecciona un modo de cocción"""
+    app_state.modo_seleccionado = modo
+    agregar_log(f'🔧 Modo seleccionado: {modo}')
+    ui.notify(f'Modo: {modo}', type='info')
+    navegar_a('dashboard')
+
+
+def crear_panel_ejecucion_activa():
+    """Crea el panel de ejecución con actualización en tiempo real"""
+    proceso = app_state.receta_actual.procesos[app_state.paso_actual]
+
+    with ui.element('div').classes('lcd-screen').style(
+        f'border-color: {COLORS.LED_RUNNING}; box-shadow: 0 0 20px {COLORS.LED_RUNNING};'
+    ):
+        ui.label('⚡ EJECUTANDO PASO').style(
+            f'font-size: 1.2rem; font-weight: bold; color: {COLORS.LED_RUNNING}; '
+            f'text-align: center; margin-bottom: 1rem; animation: led-pulse 1s infinite;'
+        )
+
+        ui.label(proceso.get_descripcion()).style(
+            f'font-size: 1rem; color: {COLORS.TEXT_PRIMARY}; text-align: center; margin-bottom: 1rem;'
+        )
+
+        # Barra de progreso del paso actual
+        progreso_label = ui.label('0%').style(
+            f'font-size: 2rem; font-weight: bold; color: {COLORS.CYAN}; text-align: center;'
+        )
+
+        progress_bar_fill = ui.element('div').classes('progress-bar').style('margin: 1rem 0;')
+        with progress_bar_fill:
+            progress_inner = ui.element('div').classes('progress-fill').style('width: 0%;')
+
+        tiempo_label = ui.label('Tiempo restante: --').style(
+            f'font-size: 0.9rem; color: {COLORS.TEXT_SECONDARY}; text-align: center;'
+        )
+
+        # Botón DETENER
+        with ui.row().classes('w-full justify-center mt-4'):
+            btn_detener = ui.button('DETENER', icon='stop', on_click=detener_ejecucion).style(
+                f'background: {COLORS.BTN_STOP}; color: white; padding: 1rem 2rem; '
+                f'font-size: 1.1rem; font-weight: bold; border-radius: 12px;'
+            )
+
+        # Timer para actualizar el progreso
+        def actualizar_progreso():
+            if not app_state.en_ejecucion:
+                timer.deactivate()
+                return
+
+            elapsed = time.time() - app_state.tiempo_inicio_paso
+            duracion = app_state.duracion_paso_actual
+
+            if duracion > 0:
+                progreso = min((elapsed / duracion) * 100, 100)
+                restante = max(duracion - elapsed, 0)
+
+                app_state.progreso_paso_actual = progreso
+
+                # Actualizar UI
+                progreso_label.text = f'{progreso:.1f}%'
+                progress_inner.style(f'width: {progreso:.1f}%;')
+                tiempo_label.text = f'Tiempo restante: {restante:.1f}s'
+
+                # Si se completó
+                if elapsed >= duracion:
+                    timer.deactivate()
+                    app_state.en_ejecucion = False
+                    app_state.paso_completado = True
+                    agregar_log(f'Paso {app_state.paso_actual + 1} completado')
+                    ui.notify('¡Paso completado!', type='positive')
+                    ui.navigate.to('/')
+
+        timer = ui.timer(0.1, actualizar_progreso)
+
+
+def iniciar_ejecucion_paso():
+    """Inicia la ejecución de un paso (llamado desde el botón EJECUTAR)"""
+    if not app_state.modo_seleccionado:
+        ui.notify('Selecciona un modo primero', type='warning')
+        return
+
     if not robot_ctrl.esta_encendido:
         ui.notify('Enciende el robot primero', type='warning')
         return
-    
-    base, usuario = recetas_ctrl.obtener_todas_recetas()
-    opciones_base = {r.id: f"{r.nombre} ({r.get_num_pasos()} pasos · {r.get_duracion_total()}s)" for r in base}
-    opciones_usuario = {r.id: f"{r.nombre} ({r.get_num_pasos()} pasos · {r.get_duracion_total()}s)" for r in usuario}
-    
-    selector = None
-    tipo_selector = None
-    
-    def confirmar():
-        global receta_actual, paso_actual, paso_completado
-        
-        if not selector.value or not tipo_selector.value:
-            ui.notify('Selecciona una receta', type='warning')
-            return
-        
-        es_base = (tipo_selector.value == 'base')
-        receta_actual = recetas_ctrl.obtener_receta_por_id(selector.value, es_base)
-        
-        if receta_actual:
-            paso_actual = 0
-            paso_completado = False
-            actualizar_pantalla_paso()
-            actualizar_pantalla_estado(ESTADO_ENCENDIDO, f'{receta_actual.nombre} cargada')
-            ui.notify(f'Receta cargada: {receta_actual.nombre}', type='positive')
-            dialog.close()
-    
-    def cambiar_tipo(e):
-        if e.value == 'base':
-            selector.options = opciones_base
-        else:
-            selector.options = opciones_usuario
-        selector.value = None
-        selector.update()
-    
-    # DIÁLOGO PROFESIONAL
-    with ui.dialog() as dialog, ui.card().style(
-        'background: linear-gradient(145deg, #1e293b, #0f172a); '
-        'border: 2px solid #334155; '
-        'border-radius: 20px; '
-        'padding: 2.5rem; '
-        'min-width: 550px; '
-        'max-width: 650px; '
-        'box-shadow: 0 20px 40px rgba(0,0,0,0.6);'
-    ):
-        # Título
-        ui.label('SELECCIONAR RECETA').style(
-            'font-size: 2rem; '
-            'font-weight: bold; '
-            'text-align: center; '
-            'color: #e2e8f0; '
-            'margin-bottom: 2.5rem; '
-            'text-shadow: 0 2px 4px rgba(0,0,0,0.3);'
-        )
-        
-        # TOGGLE MEJORADO
-        with ui.column().classes('w-full items-center mb-6'):
-            ui.label('TIPO DE RECETA').style(
-                'font-size: 0.9rem; '
-                'font-weight: 600; '
-                'color: #94a3b8; '
-                'margin-bottom: 1rem; '
-                'letter-spacing: 1px;'
-            )
-            
-            tipo_selector = ui.toggle(
-                {
-                    'base': 'PREINSTALADAS',
-                    'usuario': 'MIS RECETAS'
-                },
-                value='base',
-                on_change=cambiar_tipo
-            ).props('color=blue-6 size=xl spread').style(
-                'width: 100%; '
-                'font-size: 1.1rem; '
-                'font-weight: 600; '
-                'padding: 0.8rem;'
-            )
-        
-        # Selector de receta
-        selector = ui.select(
-            opciones_base,
-            label='Selecciona una receta'
-        ).props('outlined bg-color=blue-grey-9 label-color=blue-2').style(
-            'width: 100%; '
-            'margin-bottom: 2rem; '
-            'font-size: 1.05rem;'
-        )
-        
-        # Separador
-        ui.separator().style('background: #475569; margin: 1.5rem 0;')
-        
-        # Botones
-        with ui.row().classes('w-full justify-end gap-4'):
-            ui.button('Cancelar', on_click=dialog.close).props(
-                'outline color=red-6 size=lg'
-            ).style(
-                'font-weight: 600; '
-                'padding: 0.7rem 2rem; '
-                'border-radius: 10px;'
-            )
-            ui.button('Cargar Receta', on_click=confirmar).props(
-                'color=green-6 size=lg'
-            ).style(
-                'font-weight: 600; '
-                'padding: 0.7rem 2rem; '
-                'border-radius: 10px;'
-            )
-    
-    dialog.open()
 
-def ejecutar_paso_actual():
-    """Ejecuta el paso actual - CORREGIDO"""
-    global receta_actual, paso_actual, en_ejecucion, paso_completado
-    
-    if not receta_actual or paso_actual >= receta_actual.get_num_pasos():
-        ui.notify('No hay paso para ejecutar', type='warning')
-        return
-    
-    # ⭐ CORRECCIÓN: Resetear flags ANTES de empezar ⭐
-    paso_completado = False
-    en_ejecucion = True
-    
-    proceso = receta_actual.procesos[paso_actual]
-    actualizar_pantalla_estado(ESTADO_EJECUTANDO, f'Ejecutando paso {paso_actual + 1}...')
-    actualizar_boton_accion()
-    
-    import threading
-    import time
-    stop_progress = {'value': False}
-    
-    def actualizar_progreso_proceso():
-        tiempo_inicio = time.time()
-        duracion = proceso.get_duracion()
-        total = receta_actual.get_num_pasos()
-        
-        while not stop_progress['value']:
-            tiempo_transcurrido = time.time() - tiempo_inicio
-            if duracion > 0:
-                progreso_paso = min(tiempo_transcurrido / duracion, 1.0)
-                progreso_total = (paso_actual + progreso_paso) / total
-                if barra_progreso:
-                    barra_progreso.value = round(progreso_total, 2)
-                    barra_progreso.update()
-            time.sleep(0.3)
-    
-    thread_progreso = threading.Thread(target=actualizar_progreso_proceso, daemon=True)
-    thread_progreso.start()
-    
-    def on_completado(exito):
-        global en_ejecucion, paso_completado
-        stop_progress['value'] = True
-        en_ejecucion = False
-        
-        if exito:
-            paso_completado = True
-            actualizar_pantalla_estado(ESTADO_ENCENDIDO, f'Paso {paso_actual + 1} completado')
-            actualizar_boton_accion()
-            ui.notify(f'Paso {paso_actual + 1} completado', type='positive')
-        else:
-            paso_completado = False
-            actualizar_pantalla_estado(ESTADO_DETENIDO, 'Paso interrumpido')
-            actualizar_boton_accion()
-            ui.notify('Paso interrumpido', type='warning')
-    
-    robot_ctrl.ejecutar_proceso_async(proceso, on_completado)
+    receta = app_state.receta_actual
+    proceso = receta.procesos[app_state.paso_actual]
+    duracion = proceso.get_duracion()
+
+    # Configurar estado de ejecución
+    app_state.en_ejecucion = True
+    app_state.tiempo_inicio_paso = time.time()
+    app_state.duracion_paso_actual = duracion
+    app_state.progreso_paso_actual = 0
+
+    agregar_log(f'▶️ Ejecutando: {proceso.get_descripcion()} ({duracion}s)')
+    ui.notify(f'Ejecutando paso {app_state.paso_actual + 1}...', type='info')
+
+    # Recargar página para mostrar panel de ejecución
+    ui.navigate.to('/')
+
+
+def detener_ejecucion():
+    """Detiene la ejecución actual"""
+    progreso_actual = app_state.progreso_paso_actual
+    app_state.en_ejecucion = False
+    app_state.tiempo_inicio_paso = 0
+    app_state.duracion_paso_actual = 0
+    agregar_log(f'⏹️ Detenido por el usuario en {progreso_actual:.1f}%')
+    ui.notify(f'Ejecución detenida en {progreso_actual:.1f}%', type='warning')
+    ui.navigate.to('/')
+
 
 def siguiente_paso():
     """Avanza al siguiente paso"""
-    global paso_actual, receta_actual, paso_completado
-    
-    if not receta_actual:
-        ui.notify('Carga una receta primero', type='warning')
-        return
-    
-    if paso_actual < receta_actual.get_num_pasos():
-        paso_actual += 1
-        paso_completado = False
-        actualizar_pantalla_paso()
-        if paso_actual < receta_actual.get_num_pasos():
-            ui.notify(f'Paso {paso_actual + 1}', type='info')
-        else:
-            ui.notify('Receta completada', type='positive')
+    if app_state.paso_actual + 1 >= app_state.receta_actual.get_num_pasos():
+        # Receta completada - mostrar pantalla de celebración
+        nombre_receta = app_state.receta_actual.nombre
+        agregar_log(f'🏁 Receta completada: {nombre_receta}')
 
-def anterior_paso():
-    """Retrocede al paso anterior"""
-    global paso_actual, paso_completado
-    
-    if paso_actual > 0:
-        paso_actual -= 1
-        paso_completado = False
-        actualizar_pantalla_paso()
-        ui.notify(f'Paso {paso_actual + 1}', type='info')
+        # Guardar nombre y activar celebración ANTES de resetear
+        app_state.nombre_receta_completada = nombre_receta
+        app_state.mostrar_celebracion = True
+        app_state.receta_actual = None
+        app_state.paso_actual = 0
+        app_state.en_ejecucion = False
+        app_state.paso_completado = False
+        app_state.modo_seleccionado = None
+
+        navegar_a('celebracion')
     else:
-        ui.notify('Ya estás en el primer paso', type='info')
+        app_state.siguiente_paso()
+        agregar_log(f'➡️ Avanzando al paso {app_state.paso_actual + 1}')
+        navegar_a('dashboard')
 
-# ========== CONTINUACIÓN PARTE 2/3 ==========
 
-def mostrar_menu_crear_receta():
-    """Muestra el menú de creación de recetas - PROFESIONAL"""
-    nombre_input = None
-    desc_input = None
-    pasos_list = None
-    pasos_temporales = []
-    
-    def agregar_paso():
-        paso_num = len(pasos_temporales) + 1
-        tipos = recetas_ctrl.obtener_tipos_procesos_disponibles()
-        
-        paso_data = {'num': paso_num, 'tipo': None, 'params': '', 'duracion': 5}
-        pasos_temporales.append(paso_data)
-        
-        with pasos_list:
-            with ui.card().style(
-                'background: #1e293b; '
-                'border: 2px solid #475569; '
-                'border-radius: 12px; '
-                'padding: 1.5rem; '
-                'margin-bottom: 1rem; '
-                'box-shadow: 0 4px 8px rgba(0,0,0,0.3);'
-            ) as card:
-                with ui.row().classes('w-full items-center mb-3'):
-                    ui.label(f'PASO {paso_num}').style(
-                        'font-size: 1.2rem; '
-                        'font-weight: bold; '
-                        'color: #93c5fd;'
-                    )
-                    ui.space()
-                    ui.button(icon='delete', on_click=lambda d=paso_data, c=card: eliminar_paso(d, c)).props(
-                        'flat round dense color=red-6'
-                    ).style('font-size: 1.2rem;')
-                
-                with ui.grid(columns=2).classes('w-full gap-4'):
-                    tipo = ui.select(tipos, label='Tipo de Proceso').props(
-                        'outlined bg-color=blue-grey-9 label-color=blue-2'
-                    ).classes('col-span-1').style('color: #e2e8f0;')
-                    
-                    duracion = ui.number('Duración (segundos)', value=5, min=1, max=3600).props(
-                        'outlined bg-color=blue-grey-9 label-color=blue-2'
-                    ).classes('col-span-1').style('color: #e2e8f0;')
-                    
-                    params = ui.input('Parámetros', placeholder='Ej: ingrediente=harina, peso=250g').props(
-                        'outlined bg-color=blue-grey-9 label-color=blue-2'
-                    ).classes('col-span-2').style('color: #e2e8f0;')
-                
-                paso_data['tipo'] = tipo
-                paso_data['params'] = params
-                paso_data['duracion'] = duracion
-    
-    def eliminar_paso(paso_data, card):
-        if len(pasos_temporales) <= 1:
-            ui.notify('Debe haber al menos 1 paso', type='warning')
-            return
-        pasos_temporales.remove(paso_data)
-        card.delete()
-    
-    def guardar():
-        nombre = nombre_input.value.strip()
-        desc = desc_input.value.strip()
-        
-        if not nombre:
-            ui.notify('El nombre es obligatorio', type='warning')
-            return
-        
-        if not pasos_temporales:
-            ui.notify('Agrega al menos un paso', type='warning')
-            return
-        
-        for i, paso in enumerate(pasos_temporales, 1):
-            if not paso['tipo'].value:
-                ui.notify(f'Selecciona el tipo para el Paso {i}', type='warning')
-                return
-        
-        try:
-            receta_id = recetas_ctrl.crear_receta_usuario(nombre, desc)
-            
-            for paso in pasos_temporales:
-                recetas_ctrl.agregar_proceso_a_receta(
-                    receta_id,
-                    paso['tipo'].value,
-                    paso['params'].value.strip(),
-                    int(paso['duracion'].value)
-                )
-            
-            ui.notify(f'Receta creada: {nombre}', type='positive')
-            dialog.close()
-            
-        except Exception as e:
-            ui.notify(f'Error: {str(e)}', type='negative')
-    
-    # DIÁLOGO PROFESIONAL
-    with ui.dialog() as dialog, ui.card().style(
-        'background: linear-gradient(145deg, #1e293b, #0f172a); '
-        'border: 2px solid #334155; '
-        'border-radius: 20px; '
-        'padding: 2.5rem; '
-        'min-width: 700px; '
-        'max-width: 900px; '
-        'max-height: 85vh; '
-        'overflow-y: auto; '
-        'box-shadow: 0 20px 40px rgba(0,0,0,0.6);'
-    ):
-        # Título
-        ui.label('CREAR NUEVA RECETA').style(
-            'font-size: 2rem; '
-            'font-weight: bold; '
-            'text-align: center; '
-            'color: #e2e8f0; '
-            'margin-bottom: 2rem; '
-            'text-shadow: 0 2px 4px rgba(0,0,0,0.3);'
+def cancelar_receta():
+    """Cancela la receta actual"""
+    agregar_log('❌ Receta cancelada')
+    app_state.reset_execution()
+    ui.notify('Receta cancelada', type='warning')
+    navegar_a('dashboard')
+
+
+# ===== VISTA: CONFIG =====
+def renderizar_config():
+    """Panel de configuración"""
+    with ui.row().classes('w-full items-center gap-3 mb-4'):
+        ui.button(icon='arrow_back', on_click=lambda: navegar_a('dashboard')).props('flat round').style(
+            f'color: {COLORS.CYAN};'
         )
-        
-        # Información básica
-        with ui.card().style(
-            'background: #1e293b; '
-            'border: 2px solid #475569; '
-            'border-radius: 12px; '
-            'padding: 1.5rem; '
-            'margin-bottom: 1.5rem;'
-        ):
-            ui.label('INFORMACIÓN BÁSICA').style(
-                'font-size: 1.1rem; '
-                'font-weight: bold; '
-                'color: #93c5fd; '
-                'margin-bottom: 1rem;'
-            )
-            
-            nombre_input = ui.input('Nombre de la receta', placeholder='Ej: Pasta Carbonara').props(
-                'outlined bg-color=blue-grey-9 label-color=blue-2'
-            ).classes('w-full mb-3').style('color: #e2e8f0;')
-            
-            desc_input = ui.textarea('Descripción (opcional)', placeholder='Breve descripción de la receta...').props(
-                'outlined bg-color=blue-grey-9 label-color=blue-2 rows=3'
-            ).classes('w-full').style('color: #e2e8f0;')
-        
-        # Separador
-        ui.separator().style('background: #475569; margin: 1.5rem 0; height: 2px;')
-        
-        # Sección de pasos
-        with ui.row().classes('w-full items-center mb-4'):
-            ui.label('PASOS DE LA RECETA').style(
-                'font-size: 1.2rem; '
-                'font-weight: bold; '
-                'color: #93c5fd;'
-            )
-            ui.space()
-            ui.button('Agregar Paso', icon='add', on_click=agregar_paso).props(
-                'color=blue-6 size=md'
-            ).style(
-                'font-weight: 600; '
-                'padding: 0.5rem 1.2rem; '
-                'border-radius: 10px;'
-            )
-        
-        # Lista de pasos con scroll
-        with ui.scroll_area().style(
-            'width: 100%; '
-            'height: 400px; '
-            'background: #0f172a; '
-            'border: 2px solid #334155; '
-            'border-radius: 12px; '
-            'padding: 1rem;'
-        ):
-            pasos_list = ui.column().classes('w-full')
-        
-        # Separador
-        ui.separator().style('background: #475569; margin: 1.5rem 0; height: 2px;')
-        
-        # Botones de acción
-        with ui.row().classes('w-full justify-end gap-3'):
-            ui.button('Cancelar', on_click=dialog.close).props(
-                'outline color=red-6 size=lg'
-            ).style(
-                'font-weight: 600; '
-                'padding: 0.7rem 2rem; '
-                'border-radius: 10px;'
-            )
-            ui.button('Guardar Receta', icon='save', on_click=guardar).props(
-                'color=green-6 size=lg'
-            ).style(
-                'font-weight: 600; '
-                'padding: 0.7rem 2rem; '
-                'border-radius: 10px;'
-            )
-        
-        # Agregar el primer paso automáticamente
-        agregar_paso()
-    
-    dialog.open()
-
-def mostrar_menu_configuracion():
-    """Muestra el menú de configuración - PROFESIONAL"""
-    def confirmar_reset():
-        recetas_ctrl.reiniciar_fabrica()
-        ui.notify('Recetas de usuario eliminadas', type='positive')
-        dialog.close()
-    
-    # DIÁLOGO PROFESIONAL
-    with ui.dialog() as dialog, ui.card().style(
-        'background: linear-gradient(145deg, #1e293b, #0f172a); '
-        'border: 2px solid #334155; '
-        'border-radius: 20px; '
-        'padding: 2.5rem; '
-        'min-width: 450px; '
-        'max-width: 550px; '
-        'box-shadow: 0 20px 40px rgba(0,0,0,0.6);'
-    ):
-        # Título
         ui.label('CONFIGURACIÓN').style(
-            'font-size: 2rem; '
-            'font-weight: bold; '
-            'text-align: center; '
-            'color: #e2e8f0; '
-            'margin-bottom: 2rem; '
-            'text-shadow: 0 2px 4px rgba(0,0,0,0.3);'
+            f'font-size: 1.3rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; '
+            f'text-shadow: 0 0 10px {COLORS.CYAN};'
         )
-        
-        # Información del sistema
-        with ui.card().style(
-            'background: #1e293b; '
-            'border: 2px solid #475569; '
-            'border-radius: 12px; '
-            'padding: 1.5rem; '
-            'margin-bottom: 1.5rem;'
+
+    with ui.element('div').classes('lcd-screen'):
+        ui.label('Opciones del Sistema').style(
+            f'font-size: 1.2rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1.5rem;'
+        )
+
+        # Botón de reiniciar base de datos
+        with ui.card().classes('w-full').style(
+            f'background: {COLORS.BG_CARD}; border: 2px solid {COLORS.BORDER_PRIMARY}; padding: 1.5rem;'
         ):
-            ui.label('INFORMACIÓN DEL SISTEMA').style(
-                'font-size: 1.1rem; '
-                'font-weight: bold; '
-                'color: #93c5fd; '
-                'margin-bottom: 1rem;'
+            ui.label('Reiniciar Base de Datos').style(
+                f'font-size: 1.1rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; margin-bottom: 0.5rem;'
             )
-            
-            with ui.column().classes('gap-2'):
-                ui.label('Versión: 2.0.0 - Final').style('color: #cbd5e1; font-size: 1rem;')
-                ui.label('Modo: Control Manual').style('color: #cbd5e1; font-size: 1rem;')
-                ui.label('Base de datos: SQLite').style('color: #cbd5e1; font-size: 1rem;')
-                ui.label('Framework: NiceGUI + Python').style('color: #cbd5e1; font-size: 1rem;')
-        
-        # Separador
-        ui.separator().style('background: #475569; margin: 1.5rem 0; height: 2px;')
-        
-        # Acciones peligrosas
-        with ui.card().style(
-            'background: #7f1d1d; '
-            'border: 2px solid #991b1b; '
-            'border-radius: 12px; '
-            'padding: 1.5rem; '
-            'margin-bottom: 1.5rem;'
-        ):
-            ui.label('ZONA PELIGROSA').style(
-                'font-size: 1.1rem; '
-                'font-weight: bold; '
-                'color: #fca5a5; '
-                'margin-bottom: 1rem;'
+            ui.label('Elimina todas las recetas creadas por ti. Las recetas preinstaladas no se verán afectadas.').style(
+                f'font-size: 0.9rem; color: {COLORS.TEXT_SECONDARY}; margin-bottom: 1rem;'
             )
-            
-            ui.label('Esta acción eliminará todas tus recetas personalizadas. Las recetas preinstaladas se mantendrán intactas.').style(
-                'color: #fecaca; '
-                'font-size: 1rem; '
-                'margin-bottom: 1rem; '
-                'line-height: 1.6;'
-            )
-            
-            ui.button('Reiniciar de Fábrica', icon='restore', on_click=confirmar_reset).props(
-                'color=red-7 size=md'
-            ).classes('w-full').style(
-                'font-weight: 600; '
-                'padding: 0.8rem; '
-                'border-radius: 10px;'
-            )
-        
-        # Separador
-        ui.separator().style('background: #475569; margin: 1.5rem 0; height: 2px;')
-        
-        # Botón cerrar
-        with ui.row().classes('w-full justify-center'):
-            ui.button('Cerrar', on_click=dialog.close).props(
-                'color=blue-6 size=lg'
+
+            ui.button(
+                'REINICIAR RECETAS DE USUARIO',
+                icon='delete_forever',
+                on_click=confirmar_reinicio_bd
             ).style(
-                'font-weight: 600; '
-                'padding: 0.7rem 3rem; '
-                'border-radius: 10px;'
+                f'background: {COLORS.BTN_DANGER}; color: white; padding: 0.75rem 1.5rem; font-weight: bold;'
             )
-    
+
+
+def confirmar_reinicio_bd():
+    """Muestra diálogo de confirmación para reiniciar BD"""
+    with ui.dialog() as dialog, ui.card().style(f'background: {COLORS.BG_CARD}; min-width: 400px;'):
+        ui.label('⚠️ CONFIRMAR REINICIO').style(
+            f'font-size: 1.3rem; font-weight: bold; color: {COLORS.ORANGE}; margin-bottom: 1rem;'
+        )
+        ui.label('¿Estás seguro de que deseas eliminar TODAS tus recetas personalizadas?').style(
+            f'font-size: 1rem; color: {COLORS.TEXT_PRIMARY}; margin-bottom: 0.5rem;'
+        )
+        ui.label('Esta acción NO se puede deshacer.').style(
+            f'font-size: 0.9rem; color: {COLORS.MAGENTA}; margin-bottom: 1.5rem;'
+        )
+
+        with ui.row().classes('w-full justify-end gap-3'):
+            ui.button('Cancelar', on_click=dialog.close).props('flat').style(
+                f'color: {COLORS.TEXT_SECONDARY};'
+            )
+            ui.button('SÍ, ELIMINAR TODO', on_click=lambda: [reiniciar_bd_usuario(), dialog.close()]).style(
+                f'background: {COLORS.BTN_STOP}; color: white;'
+            )
+
     dialog.open()
 
-def crear_boton_funcion(icono: str, texto: str, color: str, callback):
-    """Crea un botón de función estilo Thermomix"""
-    with ui.column().classes('items-center gap-3').style('width: 140px'):
-        ui.button(icon=icono, on_click=callback).props(f'round size=xl').style(
-            f'width: 100px; height: 100px; background: {color}; box-shadow: 0 6px 0 {color}dd, 0 10px 20px rgba(0,0,0,0.3);'
-        ).classes('thermomix-btn')
-        ui.label(texto).classes('text-base font-bold text-center').style(
-            'color: #e2e8f0; '
-            'text-shadow: 0 2px 4px rgba(0,0,0,0.3); '
-            'letter-spacing: 0.5px;'
+
+def reiniciar_bd_usuario():
+    """Reinicia la base de datos de recetas de usuario"""
+    try:
+        from database.db import DatabaseManager
+        db = DatabaseManager()
+
+        db.ejecutar_comando("DELETE FROM ingredientes WHERE es_base = 0")
+        db.ejecutar_comando("DELETE FROM procesos_usuario")
+        db.ejecutar_comando("DELETE FROM recetas_usuario")
+
+        agregar_log('🗑️ Base de datos de usuario reiniciada')
+        ui.notify('✓ Todas las recetas de usuario han sido eliminadas', type='positive', position='top')
+
+        if app_state.receta_actual and not app_state.receta_actual.es_base:
+            app_state.reset_execution()
+
+        navegar_a('dashboard')
+    except Exception as e:
+        ui.notify(f'Error al reiniciar BD: {str(e)}', type='negative')
+
+
+# ===== VISTA: BROWSER =====
+def renderizar_browser():
+    """Navegador de recetas"""
+    with ui.row().classes('w-full items-center gap-3 mb-4'):
+        ui.button(icon='arrow_back', on_click=lambda: navegar_a('dashboard')).props('flat round').style(
+            f'color: {COLORS.CYAN};'
+        )
+        ui.label('BIBLIOTECA DE RECETAS').style(
+            f'font-size: 1.3rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; '
+            f'text-shadow: 0 0 10px {COLORS.CYAN};'
         )
 
-# ========== CONTINUACIÓN PARTE 3/3 - FINAL ==========
+    # Filtros
+    with ui.row().classes('w-full gap-2 mb-4 flex-wrap'):
+        filtros = [
+            ('todas', 'Todas'),
+            ('base', 'Preinstaladas'),
+            ('usuario', 'Mis Recetas'),
+            ('favoritas', 'Favoritas')
+        ]
 
-def crear_interfaz():
-    """Crea la interfaz principal tipo Thermomix"""
-    global estado_led, estado_texto, pantalla_paso, pantalla_info
-    global barra_progreso, label_progreso, log_area
-    global boton_accion_principal, label_accion, boton_anterior
-    
-    robot_ctrl.set_callback_log(agregar_log)
-    robot_ctrl.set_callback_estado(actualizar_estado_ui)
-    robot_ctrl.set_callback_progreso(actualizar_progreso)
-    
-    # ==========================================
-    # HEAD COMPLETO CON ESTILOS
-    # ==========================================
-    ui.add_head_html('''
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="description" content="Robot de Cocina Inteligente - Control paso a paso de recetas">
-        <meta name="author" content="Sistema de Control de Robot">
-        <title>Robot de Cocina | Control Inteligente</title>
-        <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%230f172a' width='100' height='100'/%3E%3Ccircle cx='50' cy='50' r='35' fill='%233b82f6' stroke='%2393c5fd' stroke-width='3'/%3E%3Cpath d='M35 45L50 35L65 45M50 35V65M40 55Q50 60 60 55' stroke='%23fff' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='70' r='3' fill='%2310b981'/%3E%3C/svg%3E">
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
-            html {
-                font-size: 16px;
-            }
-            
-            body { 
-                background: #0f172a;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                overflow-x: hidden;
-            }
-            
-            .thermomix-body {
-                background: linear-gradient(145deg, #1e293b, #0f172a);
-                border: 3px solid #334155;
-                border-radius: 30px;
-                box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-                width: 900px;
-                max-width: 95vw;
-                padding: 3rem;
-                margin: 2rem auto;
-            }
-            
-            .thermomix-btn:active {
-                transform: translateY(4px);
-                box-shadow: 0 2px 0 currentColor !important;
-            }
-            
-            .pantalla-lcd {
-                background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
-                color: #93c5fd;
-                font-family: 'Courier New', monospace;
-                border: 2px solid #2563eb;
-            }
-            
-            .nicegui-content {
-                display: flex !important;
-                justify-content: center !important;
-                align-items: center !important;
-                min-height: 100vh !important;
-                width: 100% !important;
-                padding: 1rem;
-            }
-            
-            .log-terminal {
-                background: #1e293b !important;
-                color: #94a3b8 !important;
-                border: 2px solid #334155 !important;
-                font-family: 'Consolas', 'Monaco', monospace !important;
-            }
-            
-            .log-terminal textarea {
-                color: #94a3b8 !important;
-                background: #1e293b !important;
-            }
-            
-            .q-field__control {
-                color: #94a3b8 !important;
-            }
-            
-            @keyframes pulse {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.8; transform: scale(1.05); }
-            }
-            
-            /* Mejorar scroll en diálogos */
-            .q-dialog__inner {
-                padding: 1rem;
-            }
-            
-            /* Scrollbar personalizado */
-            ::-webkit-scrollbar {
-                width: 10px;
-                height: 10px;
-            }
-            
-            ::-webkit-scrollbar-track {
-                background: #1e293b;
-                border-radius: 5px;
-            }
-            
-            ::-webkit-scrollbar-thumb {
-                background: #475569;
-                border-radius: 5px;
-            }
-            
-            ::-webkit-scrollbar-thumb:hover {
-                background: #64748b;
-            }
-        </style>
-    ''')
-    
-    # ==========================================
-    # BODY - ESTRUCTURA PRINCIPAL
-    # ==========================================
-    with ui.column().classes('items-center justify-center').style('width: 100vw; min-height: 100vh;'):
-        with ui.card().classes('thermomix-body'):
-            
-            # ========== PANTALLA LCD ==========
-            with ui.card().classes('pantalla-lcd w-full mb-6').style('padding: 2rem; min-height: 220px'):
-                with ui.row().classes('w-full items-center mb-4'):
-                    estado_led = ui.element('div').style(
-                        'width: 24px; height: 24px; border-radius: 50%; background: #dc2626; '
-                        'box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);'
-                    )
-                    ui.space()
-                    estado_texto = ui.label('APAGADO').classes('text-3xl font-bold').style('color: #93c5fd;')
-                
-                pantalla_paso = ui.label('No hay receta cargada').classes('text-2xl text-center font-bold mb-3').style('color: #bfdbfe;')
-                
-                # ⭐ TEXTO DE INFO MÁS GRANDE Y LEGIBLE ⭐
-                pantalla_info = ui.label('Selecciona una receta para comenzar').classes('text-center').style(
-                    'color: #cbd5e1; '
-                    'white-space: pre-line; '
-                    'font-size: 1.1rem; '
-                    'line-height: 1.6; '
-                    'font-weight: 500;'
+        for key, label in filtros:
+            is_active = app_state.filtro_recetas == key
+            btn = ui.button(label, on_click=lambda k=key: set_filtro(k)).props('dense')
+            if is_active:
+                btn.style(f'background: {COLORS.CYAN}; color: {COLORS.BG_PRIMARY};')
+            else:
+                btn.style(f'background: {COLORS.BG_CARD}; color: {COLORS.TEXT_SECONDARY}; border: 1px solid {COLORS.BORDER_PRIMARY};')
+
+    # Grid de recetas
+    recetas_base, recetas_usuario = recetas_ctrl.obtener_todas_recetas()
+
+    filtro = app_state.filtro_recetas
+    if filtro == 'base':
+        recetas = recetas_base
+    elif filtro == 'usuario':
+        recetas = recetas_usuario
+    elif filtro == 'favoritas':
+        recetas = [r for r in recetas_usuario if getattr(r, 'favorito', False)]
+    else:
+        recetas = recetas_base + recetas_usuario
+
+    if not recetas:
+        with ui.column().classes('w-full items-center py-8'):
+            ui.icon('search_off').style(f'font-size: 4rem; color: {COLORS.TEXT_SECONDARY};')
+            ui.label('No hay recetas').style(f'color: {COLORS.TEXT_SECONDARY};')
+    else:
+        with ui.grid(columns=2).classes('w-full gap-3'):
+            for receta in recetas:
+                crear_card_receta(receta)
+
+
+def set_filtro(filtro: str):
+    """Cambia el filtro de recetas"""
+    app_state.filtro_recetas = filtro
+    navegar_a('browser')
+
+
+def crear_card_receta(receta):
+    """Crea una tarjeta de receta"""
+    with ui.element('div').classes('recipe-card').on('click', lambda r=receta: cargar_receta(r)):
+        with ui.row().classes('w-full items-start justify-between gap-2'):
+            with ui.column().classes('flex-1 gap-1'):
+                badge_text = '⭐ BASE' if receta.es_base else '👤 MIA'
+                badge_color = COLORS.ORANGE if receta.es_base else COLORS.CYAN
+                ui.label(badge_text).style(
+                    f'font-size: 0.7rem; color: {badge_color}; font-weight: bold;'
                 )
-                
-                ui.separator().style('background: #3b82f6; opacity: 0.3; margin: 1.5rem 0')
-                
-                with ui.row().classes('w-full items-center gap-4'):
-                    with ui.column().classes('flex-1'):
-                        # ⭐ LABEL PROGRESO MÁS LEGIBLE ⭐
-                        ui.label('PROGRESO').style(
-                            'font-size: 0.95rem; '
-                            'font-weight: bold; '
-                            'color: #cbd5e1; '
-                            'letter-spacing: 1px;'
-                        )
-                        barra_progreso = ui.linear_progress(value=0).classes('w-full').style('height: 12px;')
-                    label_progreso = ui.label('0/0').classes('text-xl font-bold').style('color: #93c5fd;')
-            
-            # ========== BOTONES DE CONTROL ==========
-            with ui.row().classes('w-full justify-center gap-8 mb-8 mt-2'):
-                crear_boton_funcion('power_settings_new', 'ENCENDER', '#10b981', on_encender)
-                crear_boton_funcion('power_off', 'APAGAR', '#ef4444', on_apagar)
-            
-            ui.separator().style('margin: 2rem 0; background: #475569; height: 3px;')
-            
-            # ========== BOTÓN ÚNICO CONTEXTUAL ==========
-            with ui.row().classes('w-full justify-center gap-6 mb-6 mt-6'):
-                # Botón Anterior
-                with ui.column().classes('items-center gap-3').style('width: 140px'):
-                    boton_anterior = ui.button(icon='arrow_back', on_click=anterior_paso).props('round size=xl').style(
-                        'width: 100px; height: 100px; background: #6b7280; box-shadow: 0 6px 0 #6b7280dd, 0 10px 20px rgba(0,0,0,0.3);'
-                    ).classes('thermomix-btn')
-                    boton_anterior.enabled = False
-                    ui.label('ANTERIOR').classes('text-base font-bold text-center').style(
-                        'color: #e2e8f0; '
-                        'text-shadow: 0 2px 4px rgba(0,0,0,0.3); '
-                        'letter-spacing: 0.5px;'
-                    )
-                
-                # BOTÓN PRINCIPAL CONTEXTUAL
-                with ui.column().classes('items-center gap-3').style('width: 160px'):
-                    boton_accion_principal = ui.button(icon='power_off', on_click=accion_principal_click).props('round size=xl').style(
-                        'width: 140px; height: 140px; background: #6b7280; box-shadow: 0 8px 0 #6b7280dd, 0 12px 24px rgba(0,0,0,0.4); opacity: 0.5;'
-                    ).classes('thermomix-btn')
-                    boton_accion_principal.enabled = False
-                    label_accion = ui.label('SIN RECETA').classes('text-lg font-bold text-center').style(
-                        'color: #e2e8f0; '
-                        'text-shadow: 0 2px 4px rgba(0,0,0,0.3); '
-                        'letter-spacing: 0.5px;'
-                    )
-            
-            ui.separator().style('margin: 2rem 0; background: #475569; height: 3px;')
-            
-            # ========== BOTONES DE FUNCIONES ==========
-            with ui.row().classes('w-full justify-center gap-8 mb-8 mt-6'):
-                crear_boton_funcion('restaurant_menu', 'RECETAS', '#3b82f6', seleccionar_receta)
-                crear_boton_funcion('add_circle', 'CREAR', '#06b6d4', mostrar_menu_crear_receta)
-                crear_boton_funcion('settings', 'CONFIG', '#6b7280', mostrar_menu_configuracion)
-            
-            ui.separator().style('margin: 2rem 0; background: #475569;')
-            
-            # ========== LOG DE ACTIVIDAD ==========
-            # ⭐ LABEL MÁS GRANDE Y LEGIBLE ⭐
-            ui.label('REGISTRO DE ACTIVIDAD').style(
-                'font-size: 1.1rem; '
-                'font-weight: bold; '
-                'color: #cbd5e1; '
-                'letter-spacing: 1px; '
-                'margin-bottom: 0.8rem;'
-            )
-            log_area = ui.textarea(value='Sistema iniciado...').classes('w-full log-terminal').props('readonly outlined dense').style(
-                'height: 150px; font-family: Consolas, Monaco, monospace; font-size: 13px; line-height: 1.5;'
-            )
-    
-    # ========== LOGS INICIALES ==========
-    agregar_log('=' * 50)
-    agregar_log('ROBOT DE COCINA v2.0 - SISTEMA INICIADO')
-    agregar_log('=' * 50)
-    agregar_log('INSTRUCCIONES:')
-    agregar_log('1. Pulsa ENCENDER para activar el robot')
-    agregar_log('2. Selecciona una receta del menu RECETAS')
-    agregar_log('3. Pulsa COCINAR para ejecutar el paso')
-    agregar_log('4. El boton cambiara segun el estado')
-    agregar_log('=' * 50)
-    agregar_log('Sistema listo para operar')
-    agregar_log('')
 
-# ========== FIN PARTE 3/3 - CÓDIGO COMPLETO ==========
+                ui.label(receta.nombre).style(
+                    f'font-size: 1rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY};'
+                )
+
+                with ui.row().classes('gap-3'):
+                    ui.label(f'📋 {receta.get_num_pasos()} pasos').style(
+                        f'font-size: 0.8rem; color: {COLORS.TEXT_SECONDARY};'
+                    )
+                    duracion = receta.get_duracion_total()
+                    mins = duracion // 60
+                    ui.label(f'⏱ {mins}m' if mins > 0 else f'⏱ {duracion}s').style(
+                        f'font-size: 0.8rem; color: {COLORS.TEXT_SECONDARY};'
+                    )
+
+            if not receta.es_base:
+                is_fav = getattr(receta, 'favorito', False)
+                fav_icon = 'star' if is_fav else 'star_border'
+                fav_color = COLORS.ORANGE if is_fav else COLORS.TEXT_SECONDARY
+
+                ui.button(icon=fav_icon, on_click=lambda e, r=receta: toggle_favorito(r)).props('flat dense').style(
+                    f'color: {fav_color};'
+                )
+
+
+def toggle_favorito(receta):
+    """Toggle favorito"""
+    try:
+        nuevo_estado = recetas_ctrl.toggle_favorito(receta.id, receta.es_base)
+        receta.favorito = nuevo_estado
+        msg = 'Agregada a favoritos' if nuevo_estado else 'Eliminada de favoritos'
+        ui.notify(msg, type='positive', position='top')
+        navegar_a('browser')
+    except Exception as e:
+        ui.notify(f'Error: {str(e)}', type='negative')
+
+
+def cargar_receta(receta):
+    """Carga una receta"""
+    app_state.cargar_receta(receta)
+    agregar_log(f'📖 Receta cargada: {receta.nombre}')
+    ui.notify(f'Receta cargada: {receta.nombre}', type='positive', position='top')
+    navegar_a('dashboard')
+
+
+# ===== VISTA: WIZARD =====
+def renderizar_wizard():
+    """Wizard de creación de recetas"""
+
+    # Header
+    with ui.row().classes('w-full items-center gap-3 mb-4'):
+        ui.button(icon='arrow_back', on_click=cancelar_wizard).props('flat round').style(
+            f'color: {COLORS.CYAN};'
+        )
+        ui.label('CREAR RECETA').style(
+            f'font-size: 1.3rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; '
+            f'text-shadow: 0 0 10px {COLORS.CYAN};'
+        )
+
+    # Indicador de paso
+    paso_actual = app_state.wizard_paso
+    with ui.row().classes('w-full justify-center gap-4 mb-6'):
+        for i in range(1, 4):
+            is_active = i == paso_actual
+            is_done = i < paso_actual
+
+            color = COLORS.CYAN if is_active else (COLORS.GREEN if is_done else COLORS.BORDER_PRIMARY)
+
+            with ui.element('div').style(
+                f'width: 40px; height: 40px; border-radius: 50%; '
+                f'background: {color if is_active or is_done else COLORS.BG_CARD}; '
+                f'border: 2px solid {color}; '
+                f'display: flex; align-items: center; justify-content: center; '
+                f'{"box-shadow: 0 0 15px " + COLORS.CYAN + ";" if is_active else ""}'
+            ):
+                if is_done:
+                    ui.icon('check').style('color: white; font-size: 1.2rem;')
+                else:
+                    ui.label(str(i)).style(
+                        f'color: {"white" if is_active else COLORS.TEXT_SECONDARY}; '
+                        f'font-weight: bold;'
+                    )
+
+    # Contenido del paso
+    with ui.element('div').classes('lcd-screen'):
+        if paso_actual == 1:
+            renderizar_wizard_paso1()
+        elif paso_actual == 2:
+            renderizar_wizard_paso2()
+        elif paso_actual == 3:
+            renderizar_wizard_paso3()
+
+
+def renderizar_wizard_paso1():
+    """Paso 1: Información básica"""
+    ui.label('Información Básica').style(
+        f'font-size: 1.2rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem;'
+    )
+
+    # Nombre
+    ui.label('Nombre de la receta *').style(f'color: {COLORS.TEXT_SECONDARY}; margin-bottom: 0.5rem;')
+    nombre_input = ui.input(placeholder='Ej: Gazpacho Andaluz').props('outlined dark').classes('w-full')
+    nombre_input.style(f'color: {COLORS.TEXT_PRIMARY};')
+
+    ui.space()
+
+    # Descripción
+    ui.label('Descripción (opcional)').style(f'color: {COLORS.TEXT_SECONDARY}; margin-bottom: 0.5rem;')
+    desc_input = ui.textarea(placeholder='Describe tu receta...').props('outlined dark').classes('w-full')
+
+    # Guardar referencias
+    app_state.wizard_nombre_input = nombre_input
+    app_state.wizard_desc_input = desc_input
+
+    # Botones
+    with ui.row().classes('w-full justify-end gap-3 mt-6'):
+        ui.button('Cancelar', on_click=cancelar_wizard).props('flat').style(f'color: {COLORS.TEXT_SECONDARY};')
+        ui.button('Siguiente', icon='arrow_forward', on_click=wizard_siguiente).style(
+            f'background: {COLORS.BTN_ACTION}; color: white;'
+        )
+
+
+def renderizar_wizard_paso2():
+    """Paso 2: Ingredientes"""
+    ui.label('Ingredientes').style(
+        f'font-size: 1.2rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem;'
+    )
+
+    # Lista de ingredientes agregados
+    if app_state.wizard_ingredientes:
+        for i, ing in enumerate(app_state.wizard_ingredientes):
+            with ui.row().classes('w-full items-center gap-2 mb-2'):
+                ui.label(f"• {ing['nombre']} - {ing['cantidad']} {ing['unidad']}").style(
+                    f'color: {COLORS.TEXT_PRIMARY}; flex: 1;'
+                )
+                ui.button(icon='delete', on_click=lambda idx=i: eliminar_ingrediente(idx)).props('flat dense').style(
+                    f'color: {COLORS.MAGENTA};'
+                )
+
+    # Formulario para agregar
+    ui.label('Agregar ingrediente:').style(f'color: {COLORS.TEXT_SECONDARY}; margin-top: 1rem;')
+
+    with ui.row().classes('w-full gap-2 items-end'):
+        nombre_ing = ui.input(placeholder='Ingrediente').props('outlined dark dense').classes('flex-1')
+        cantidad_ing = ui.input(placeholder='Cant.').props('outlined dark dense type=number').style('width: 80px;')
+        unidad_ing = ui.select(['g', 'kg', 'ml', 'l', 'unidad'], value='g').props('outlined dark dense').style('width: 80px;')
+
+        ui.button(icon='add', on_click=lambda: agregar_ingrediente(nombre_ing, cantidad_ing, unidad_ing)).props('round dense').style(
+            f'background: {COLORS.CYAN}; color: white;'
+        )
+
+    # Botones navegación
+    with ui.row().classes('w-full justify-between mt-6'):
+        ui.button('Atrás', icon='arrow_back', on_click=wizard_anterior).props('flat').style(f'color: {COLORS.TEXT_SECONDARY};')
+        ui.button('Siguiente', icon='arrow_forward', on_click=wizard_siguiente).style(
+            f'background: {COLORS.BTN_ACTION}; color: white;'
+        )
+
+
+def renderizar_wizard_paso3():
+    """Paso 3: Procesos"""
+    ui.label('Pasos de Cocción').style(
+        f'font-size: 1.2rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem;'
+    )
+
+    # Lista de procesos
+    if app_state.wizard_procesos:
+        for i, proc in enumerate(app_state.wizard_procesos):
+            with ui.row().classes('w-full items-center gap-2 mb-2'):
+                ui.label(f"{i+1}. {proc['tipo']} - {proc['duracion']}s").style(
+                    f'color: {COLORS.TEXT_PRIMARY}; flex: 1;'
+                )
+                ui.button(icon='delete', on_click=lambda idx=i: eliminar_proceso(idx)).props('flat dense').style(
+                    f'color: {COLORS.MAGENTA};'
+                )
+
+    # Selector de modo
+    ui.label('Agregar paso:').style(f'color: {COLORS.TEXT_SECONDARY}; margin-top: 1rem;')
+
+    modos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
+
+    with ui.row().classes('w-full gap-2 items-end flex-wrap'):
+        modo_select = ui.select(modos, value='Picar', label='Modo').props('outlined dark dense')
+        duracion_proc = ui.input(placeholder='Seg', value='5').props('outlined dark dense type=number').style('width: 80px;')
+
+        ui.button(icon='add', on_click=lambda: agregar_proceso(modo_select, duracion_proc)).props('round dense').style(
+            f'background: {COLORS.CYAN}; color: white;'
+        )
+
+    # Botones navegación
+    with ui.row().classes('w-full justify-between mt-6'):
+        ui.button('Atrás', icon='arrow_back', on_click=wizard_anterior).props('flat').style(f'color: {COLORS.TEXT_SECONDARY};')
+        ui.button('GUARDAR', icon='save', on_click=guardar_receta).style(
+            f'background: {COLORS.BTN_POWER}; color: white;'
+        )
+
+
+def agregar_ingrediente(nombre_input, cantidad_input, unidad_input):
+    """Agrega un ingrediente"""
+    nombre = nombre_input.value
+    cantidad = cantidad_input.value
+    unidad = unidad_input.value
+
+    if not nombre or not cantidad:
+        ui.notify('Completa nombre y cantidad', type='warning')
+        return
+
+    app_state.wizard_ingredientes.append({
+        'nombre': nombre,
+        'cantidad': float(cantidad),
+        'unidad': unidad
+    })
+
+    nombre_input.value = ''
+    cantidad_input.value = ''
+
+    ui.notify(f'Ingrediente agregado: {nombre}', type='positive')
+    navegar_a('wizard')
+
+
+def eliminar_ingrediente(idx):
+    """Elimina un ingrediente"""
+    app_state.wizard_ingredientes.pop(idx)
+    navegar_a('wizard')
+
+
+def agregar_proceso(modo_select, duracion_input):
+    """Agrega un proceso"""
+    modo = modo_select.value
+    duracion = duracion_input.value
+
+    if not duracion:
+        ui.notify('Indica la duración', type='warning')
+        return
+
+    app_state.wizard_procesos.append({
+        'tipo': modo,
+        'duracion': int(duracion),
+        'parametros': ''
+    })
+
+    duracion_input.value = '5'
+
+    ui.notify(f'Paso agregado: {modo}', type='positive')
+    navegar_a('wizard')
+
+
+def eliminar_proceso(idx):
+    """Elimina un proceso"""
+    app_state.wizard_procesos.pop(idx)
+    navegar_a('wizard')
+
+
+def wizard_siguiente():
+    """Avanza al siguiente paso del wizard"""
+    paso = app_state.wizard_paso
+
+    # Validaciones
+    if paso == 1:
+        nombre = getattr(app_state, 'wizard_nombre_input', None)
+        desc = getattr(app_state, 'wizard_desc_input', None)
+
+        if nombre and nombre.value:
+            app_state.wizard_nombre = nombre.value
+            app_state.wizard_descripcion = desc.value if desc else ''
+        else:
+            ui.notify('Introduce un nombre para la receta', type='warning')
+            return
+
+    if paso < 3:
+        app_state.wizard_paso = paso + 1
+        navegar_a('wizard')
+
+
+def wizard_anterior():
+    """Retrocede al paso anterior"""
+    if app_state.wizard_paso > 1:
+        app_state.wizard_paso -= 1
+        navegar_a('wizard')
+
+
+def cancelar_wizard():
+    """Cancela el wizard"""
+    app_state.reset_wizard()
+    navegar_a('dashboard')
+
+
+def guardar_receta():
+    """Guarda la receta en la base de datos"""
+    nombre = getattr(app_state, 'wizard_nombre', '')
+    descripcion = getattr(app_state, 'wizard_descripcion', '')
+
+    if not nombre:
+        ui.notify('Falta el nombre de la receta', type='warning')
+        return
+
+    if not app_state.wizard_procesos:
+        ui.notify('Agrega al menos un paso de cocción', type='warning')
+        return
+
+    try:
+        # Crear receta
+        receta = recetas_ctrl.crear_receta_usuario(nombre, descripcion)
+
+        # Agregar ingredientes
+        for i, ing in enumerate(app_state.wizard_ingredientes):
+            recetas_ctrl.agregar_ingrediente(
+                receta.id, ing['nombre'], ing['cantidad'], ing['unidad'], i
+            )
+
+        # Agregar procesos
+        for proc in app_state.wizard_procesos:
+            recetas_ctrl.agregar_proceso_a_receta(
+                receta.id, proc['tipo'], proc['parametros'], proc['duracion']
+            )
+
+        agregar_log(f'✅ Receta creada: {nombre}')
+        ui.notify(f'Receta "{nombre}" creada con éxito!', type='positive')
+        app_state.reset_wizard()
+        navegar_a('browser')
+
+    except Exception as e:
+        ui.notify(f'Error: {str(e)}', type='negative')

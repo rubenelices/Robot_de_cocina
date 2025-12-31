@@ -51,13 +51,13 @@ class RecetasController:
     def obtener_recetas_usuario(self) -> List[Receta]:
         """
         Obtiene todas las recetas del usuario
-        
+
         Returns:
             Lista de recetas de usuario con sus procesos cargados
         """
         recetas_data = self._db.obtener_recetas_usuario()
         recetas = []
-        
+
         for r_data in recetas_data:
             receta = Receta(
                 id=r_data['id'],
@@ -65,13 +65,16 @@ class RecetasController:
                 descripcion=r_data.get('descripcion', ''),
                 es_base=False
             )
-            
+
+            # Establecer favorito (nuevo en v2.0)
+            receta.favorito = bool(r_data.get('favorito', 0))
+
             # Cargar procesos
             procesos_data = self._db.obtener_procesos_receta_usuario(r_data['id'])
             receta.cargar_procesos_desde_db(procesos_data)
-            
+
             recetas.append(receta)
-        
+
         return recetas
     
     def obtener_todas_recetas(self) -> tuple[List[Receta], List[Receta]]:
@@ -104,18 +107,28 @@ class RecetasController:
     
     # ========== CREACIÓN DE RECETAS ==========
     
-    def crear_receta_usuario(self, nombre: str, descripcion: str = "") -> int:
+    def crear_receta_usuario(self, nombre: str, descripcion: str = "") -> Receta:
         """
         Crea una nueva receta de usuario
-        
+
         Args:
             nombre: Nombre de la receta
             descripcion: Descripción opcional
-        
+
         Returns:
-            ID de la receta creada
+            Receta creada
         """
-        return self._db.insertar_receta_usuario(nombre, descripcion)
+        receta_id = self._db.insertar_receta_usuario(nombre, descripcion)
+
+        # Devolver objeto Receta
+        receta = Receta(
+            id=receta_id,
+            nombre=nombre,
+            descripcion=descripcion,
+            es_base=False
+        )
+
+        return receta
     
     def agregar_proceso_a_receta(self, receta_id: int, tipo_proceso: str,
                                 parametros: str, duracion: int) -> int:
@@ -144,9 +157,103 @@ class RecetasController:
         return self._db.insertar_proceso_usuario(
             receta_id, tipo_proceso, parametros, orden, duracion
         )
-    
+
+    def agregar_ingrediente(self, receta_id: int, nombre: str,
+                           cantidad: float, unidad: str, orden: int) -> int:
+        """
+        Agrega un ingrediente a una receta de usuario
+
+        Args:
+            receta_id: ID de la receta
+            nombre: Nombre del ingrediente
+            cantidad: Cantidad numérica
+            unidad: Unidad de medida (g, ml, etc.)
+            orden: Orden en la lista
+
+        Returns:
+            ID del ingrediente creado
+        """
+        resultado = self._db.ejecutar_comando(
+            """
+            INSERT INTO ingredientes (receta_id, nombre, cantidad, unidad, orden, es_base)
+            VALUES (?, ?, ?, ?, ?, 0)
+            """,
+            (receta_id, nombre, cantidad, unidad, orden)
+        )
+
+        return resultado
+
+    # ========== FAVORITOS (NUEVO v2.0) ==========
+
+    def toggle_favorito(self, receta_id: int, es_base: bool = False) -> bool:
+        """
+        Alterna el estado de favorito de una receta de usuario
+
+        Args:
+            receta_id: ID de la receta
+            es_base: Si es receta base (no se permite marcar como favorita)
+
+        Returns:
+            Nuevo estado de favorito (True/False)
+
+        Raises:
+            ValueError: Si se intenta marcar una receta base como favorita
+            RecetaNoEncontradaException: Si no se encuentra la receta
+        """
+        if es_base:
+            raise ValueError("No se pueden marcar recetas preinstaladas como favoritas")
+
+        # Obtener estado actual
+        resultado = self._db.ejecutar_query(
+            "SELECT favorito FROM recetas_usuario WHERE id = ?",
+            (receta_id,)
+        )
+
+        if not resultado:
+            raise RecetaNoEncontradaException(f"Receta {receta_id} no encontrada")
+
+        # Alternar estado
+        nuevo_estado = 0 if resultado[0]['favorito'] else 1
+
+        # Actualizar en BD
+        self._db.ejecutar_comando(
+            "UPDATE recetas_usuario SET favorito = ? WHERE id = ?",
+            (nuevo_estado, receta_id)
+        )
+
+        return bool(nuevo_estado)
+
+    def obtener_recetas_favoritas(self) -> List[Receta]:
+        """
+        Obtiene solo las recetas marcadas como favoritas
+
+        Returns:
+            Lista de recetas favoritas
+        """
+        recetas_data = self._db.ejecutar_query(
+            "SELECT * FROM recetas_usuario WHERE favorito = 1 ORDER BY nombre"
+        )
+
+        recetas = []
+        for r_data in recetas_data:
+            receta = Receta(
+                id=r_data['id'],
+                nombre=r_data['nombre'],
+                descripcion=r_data.get('descripcion', ''),
+                es_base=False
+            )
+            receta.favorito = True
+
+            # Cargar procesos
+            procesos_data = self._db.obtener_procesos_receta_usuario(r_data['id'])
+            receta.cargar_procesos_desde_db(procesos_data)
+
+            recetas.append(receta)
+
+        return recetas
+
     # ========== ELIMINACIÓN ==========
-    
+
     def reiniciar_fabrica(self):
         """
         Elimina todas las recetas y procesos del usuario

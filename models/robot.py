@@ -9,12 +9,12 @@ from utils.exceptions import (
     RobotApagadoException,
     ProcesoInvalidoException
 )
-from main import (
-    ESTADO_APAGADO,
-    ESTADO_ENCENDIDO,
-    ESTADO_EJECUTANDO,
-    ESTADO_DETENIDO
-)
+
+# Constantes de estado del robot
+ESTADO_APAGADO = "apagado"
+ESTADO_ENCENDIDO = "encendido"
+ESTADO_EJECUTANDO = "ejecutando"
+ESTADO_DETENIDO = "detenido"
 
 class RobotCocina:
     """

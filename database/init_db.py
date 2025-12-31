@@ -1,13 +1,18 @@
 """
 Inicialización de la base de datos con tablas y datos preinstalados (CORREGIDO)
+Versión 2.0 - Incluye migración para ingredientes y favoritos
 """
 from database.db import DatabaseManager
+import sqlite3
 
 def inicializar_base_datos():
     """Crea las tablas y carga datos preinstalados si no existen"""
     db = DatabaseManager()
-    
+
     crear_tablas(db)
+
+    # NUEVA: Ejecutar migración a v2.0
+    migrar_a_v2(db)
 
     # Cargar datos solo si no existen recetas base
     if necesita_datos_iniciales(db):
@@ -50,6 +55,93 @@ def crear_tablas(db: DatabaseManager):
     );
     """
     db.ejecutar_script(schema)
+
+
+def migrar_a_v2(db: DatabaseManager):
+    """
+    Migra la base de datos a la versión 2.0
+    Cambios:
+    - Tabla ingredientes (con FK a recetas_usuario)
+    - Columna favorito en recetas_usuario
+    - Columna fecha_creacion en recetas_usuario
+    """
+    print("\n🔄 Verificando migración a v2.0...")
+
+    # Verificar si ya existe la tabla ingredientes
+    resultado = db.ejecutar_query(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='ingredientes'"
+    )
+
+    if resultado:
+        print("✓ Base de datos ya está en v2.0")
+        return
+
+    print("📦 Migrando base de datos a v2.0...")
+
+    # Paso 1: Crear tabla ingredientes
+    try:
+        db.ejecutar_script("""
+            CREATE TABLE IF NOT EXISTS ingredientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receta_id INTEGER NOT NULL,
+                nombre TEXT NOT NULL,
+                cantidad REAL,
+                unidad TEXT,
+                orden INTEGER NOT NULL,
+                es_base BOOLEAN DEFAULT 0,
+                FOREIGN KEY (receta_id) REFERENCES recetas_usuario(id) ON DELETE CASCADE
+            );
+        """)
+        print("  ✓ Tabla 'ingredientes' creada")
+    except Exception as e:
+        print(f"  ⚠ Error al crear tabla ingredientes: {e}")
+
+    # Paso 2: Agregar columna favorito a recetas_usuario
+    try:
+        db.ejecutar_comando(
+            "ALTER TABLE recetas_usuario ADD COLUMN favorito INTEGER DEFAULT 0"
+        )
+        print("  ✓ Columna 'favorito' agregada a recetas_usuario")
+    except sqlite3.OperationalError as e:
+        if "duplicate column" in str(e).lower():
+            print("  ℹ Columna 'favorito' ya existe")
+        else:
+            print(f"  ⚠ Error al agregar columna favorito: {e}")
+
+    # Paso 3: Agregar columna fecha_creacion a recetas_usuario
+    # Nota: SQLite no permite DEFAULT CURRENT_TIMESTAMP en ALTER TABLE
+    # Usamos NULL como default y lo rellenamos después
+    try:
+        db.ejecutar_comando(
+            "ALTER TABLE recetas_usuario ADD COLUMN fecha_creacion DATETIME"
+        )
+        print("  ✓ Columna 'fecha_creacion' agregada a recetas_usuario")
+
+        # Rellenar con fecha actual las recetas existentes
+        db.ejecutar_comando(
+            "UPDATE recetas_usuario SET fecha_creacion = CURRENT_TIMESTAMP WHERE fecha_creacion IS NULL"
+        )
+        print("  ✓ Fechas actualizadas para recetas existentes")
+    except sqlite3.OperationalError as e:
+        if "duplicate column" in str(e).lower():
+            print("  ℹ Columna 'fecha_creacion' ya existe")
+        else:
+            print(f"  ⚠ Error al agregar columna fecha_creacion: {e}")
+
+    # Paso 4: Crear tabla de preferencias de usuario (opcional pero útil)
+    try:
+        db.ejecutar_script("""
+            CREATE TABLE IF NOT EXISTS preferencias_usuario (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                clave TEXT NOT NULL UNIQUE,
+                valor TEXT
+            );
+        """)
+        print("  ✓ Tabla 'preferencias_usuario' creada")
+    except Exception as e:
+        print(f"  ⚠ Error al crear tabla preferencias: {e}")
+
+    print("✅ Migración a v2.0 completada exitosamente\n")
 
 
 def necesita_datos_iniciales(db: DatabaseManager) -> bool:

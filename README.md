@@ -52,11 +52,10 @@ Este proyecto es una simulación completa de un robot de cocina multifunción qu
 
 ### Interfaz de Usuario
 
-#### Diseño Premium
+#### Diseño
 
-- **Paleta de Colores Thermomix**: Diseño inspirado en el Thermomix TM6 con colores cyan, magenta, verde y naranja
+- **Paleta de Colores Thermomix**: Diseño con colores cyan, magenta, verde y naranja
 - **Pantalla LCD Simulada**: Interfaz tipo LCD con efectos de brillo y bordes iluminados
-- **Modo Oscuro**: Toggle para alternar entre tema claro y oscuro
 - **Responsive**: Adaptado para dispositivos móviles, tablets y desktop
 
 #### Componentes Principales
@@ -108,7 +107,7 @@ robotcopia/
 │
 ├── controllers/              # Capa de Controladores
 │   ├── robot_controller.py  # Controlador del robot
-│   └── recetas_controller.py # Controlador de recetas (CRUD)
+│   └── recetas_controller.py # Controlador de recetas 
 │
 ├── database/                 # Capa de Datos
 │   ├── db.py                # DatabaseManager (SQLite)
@@ -120,7 +119,6 @@ robotcopia/
 │   │   ├── common.py        # Componentes comunes
 │   │   ├── mode_selector.py # Selector de modos
 │   │   ├── recipe_browser.py # Navegador de recetas
-│   │   ├── recipe_wizard.py # Wizard de creación
 │   │   └── execution_panel.py # Panel de ejecución
 │   ├── state/
 │   │   └── app_state.py     # Estado centralizado de la aplicación

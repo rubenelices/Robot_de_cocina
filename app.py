@@ -7,12 +7,18 @@ from nicegui import ui, app
 from ui.interfaz import crear_interfaz_principal
 from database.init_db import inicializar_base_datos
 from ui.state.app_state import app_state
+from models.procesos_basicos import cargar_procesos_personalizados_desde_bd
 
 # ===== INICIALIZACIÓN =====
 print("Iniciando Thermomix...")
 
 # Inicializar base de datos (incluye migración a v2.0)
 inicializar_base_datos()
+
+# Cargar procesos personalizados desde BD
+print("Cargando procesos personalizados...")
+cargar_procesos_personalizados_desde_bd()
+print("✓ Procesos personalizados cargados")
 
 # ===== CONFIGURACIÓN DE LA APLICACIÓN =====
 @ui.page('/')
@@ -43,6 +49,8 @@ if __name__ in {"__main__", "__mp_main__"}:
     print("="*60)
     print("\n Características:")
     print("  ✓ Selector de modo manual (10 modos de cocción)")
+    print("  ✓ Control de velocidad en tiempo real (1-10)")
+    print("  ✓ Editor de funciones personalizadas (Batir, Emulsionar, etc.)")
     print("  ✓ Navegador de recetas con grid responsivo")
     print("  ✓ Wizard de creación de recetas (3 pasos)")
     print("  ✓ Panel de ejecución paso a paso")
@@ -59,5 +67,5 @@ if __name__ in {"__main__", "__mp_main__"}:
         port=8080,
         reload=False,  # DESACTIVADO para evitar errores de "client deleted"
         show=True,
-        favicon='🍹'  # Icono de batido/licuadora
+        favicon='⏲️'  # Icono 
     )

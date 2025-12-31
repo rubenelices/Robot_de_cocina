@@ -364,6 +364,37 @@ class Pesar(ProcesoCocina):
         return f"Pesar {self._parametros}"
 
 
+class ProcesoPersonalizado(ProcesoCocina):
+    """Clase genérica para procesos personalizados creados por el usuario"""
+
+    def __init__(self, nombre: str, emoji: str, duracion_base: int,
+                 parametros: str = "", descripcion: str = ""):
+        super().__init__(parametros)
+        self._nombre = nombre
+        self._emoji = emoji
+        self._duracion = duracion_base
+        self._descripcion = descripcion
+
+    def ejecutar(self, callback: Optional[Callable[[str], None]] = None):
+        if callback:
+            callback(f"{self._emoji} Iniciando {self._nombre}...")
+
+        exito = self.simular_proceso(self._duracion, callback, pasos=8)
+
+        if exito and callback:
+            callback(f"✓ {self._nombre} completado")
+
+        return exito
+
+    def get_duracion(self) -> int:
+        return self._duracion
+
+    def get_descripcion(self) -> str:
+        if self._descripcion:
+            return f"{self._nombre}: {self._descripcion}"
+        return self._nombre
+
+
 # Diccionario para mapear nombres a clases (Factory Pattern)
 PROCESOS_DISPONIBLES = {
     'Picar': Picar,
@@ -378,23 +409,93 @@ PROCESOS_DISPONIBLES = {
     'Pesar': Pesar
 }
 
+# Cache de procesos personalizados cargados desde BD
+_procesos_personalizados_cache = {}
+
+def registrar_proceso_personalizado(nombre: str, emoji: str, duracion_base: int,
+                                   parametros_defecto: str = "", descripcion: str = ""):
+    """
+    Registra un nuevo tipo de proceso personalizado en el sistema
+
+    Args:
+        nombre: Nombre único del proceso
+        emoji: Emoji representativo
+        duracion_base: Duración base en segundos
+        parametros_defecto: Parámetros por defecto
+        descripcion: Descripción del proceso
+    """
+    _procesos_personalizados_cache[nombre] = {
+        'emoji': emoji,
+        'duracion_base': duracion_base,
+        'parametros_defecto': parametros_defecto,
+        'descripcion': descripcion
+    }
+
+def cargar_procesos_personalizados_desde_bd():
+    """
+    Carga todos los procesos personalizados desde la base de datos
+
+    Debe ser llamado al iniciar la aplicación
+    """
+    from database.db import DatabaseManager
+
+    db = DatabaseManager()
+    procesos = db.obtener_procesos_personalizados()
+
+    for proceso in procesos:
+        registrar_proceso_personalizado(
+            nombre=proceso['nombre'],
+            emoji=proceso['emoji'],
+            duracion_base=proceso['duracion_base'],
+            parametros_defecto=proceso['parametros_defecto'] or "",
+            descripcion=proceso['descripcion'] or ""
+        )
+
+def obtener_todos_los_procesos() -> dict:
+    """
+    Retorna un diccionario con todos los procesos disponibles (básicos + personalizados)
+
+    Returns:
+        Dict con nombre del proceso como clave
+    """
+    todos = PROCESOS_DISPONIBLES.copy()
+    for nombre in _procesos_personalizados_cache:
+        todos[nombre] = ProcesoPersonalizado
+    return todos
+
 def crear_proceso(tipo: str, parametros: str = "", duracion: int = None) -> ProcesoCocina:
     """
     Factory function para crear procesos dinámicamente
-    
+
     Args:
         tipo: Nombre del tipo de proceso
         parametros: Parámetros del proceso
         duracion: Duración en segundos (opcional)
-    
+
     Returns:
         Instancia del proceso solicitado
-    
+
     Raises:
         ValueError: Si el tipo de proceso no existe
     """
-    if tipo not in PROCESOS_DISPONIBLES:
-        raise ValueError(f"Tipo de proceso '{tipo}' no reconocido")
-    
-    clase_proceso = PROCESOS_DISPONIBLES[tipo]
-    return clase_proceso(parametros, duracion)
+    # Primero verificar si es un proceso básico
+    if tipo in PROCESOS_DISPONIBLES:
+        clase_proceso = PROCESOS_DISPONIBLES[tipo]
+        return clase_proceso(parametros, duracion)
+
+    # Luego verificar si es un proceso personalizado
+    if tipo in _procesos_personalizados_cache:
+        config = _procesos_personalizados_cache[tipo]
+        # Usar parámetros proporcionados o los por defecto
+        params = parametros if parametros else config['parametros_defecto']
+        dur = duracion if duracion else config['duracion_base']
+
+        return ProcesoPersonalizado(
+            nombre=tipo,
+            emoji=config['emoji'],
+            duracion_base=dur,
+            parametros=params,
+            descripcion=config['descripcion']
+        )
+
+    raise ValueError(f"Tipo de proceso '{tipo}' no reconocido")

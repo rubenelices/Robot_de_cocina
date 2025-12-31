@@ -145,25 +145,64 @@ class RobotCocina:
     def parar(self):
         """
         Detiene la ejecución actual
-        
+
         Marca el proceso/receta actual para detención.
         """
         if not self.esta_ejecutando:
             self.__log("⚠️ No hay ninguna ejecución en curso")
             return
-        
+
         self.__log("🛑 Solicitando detención...")
-        
+
         # Detener el proceso actual
         if self.__proceso_actual:
             self.__proceso_actual.detener()
-        
+
         # Detener todos los procesos de la receta actual
         if self.__receta_actual:
             self.__receta_actual.detener_procesos()
-        
+
         self.__cambiar_estado(ESTADO_DETENIDO)
         self.__log("⏸️ Ejecución detenida")
+
+    def ajustar_velocidad(self, nueva_velocidad: int) -> bool:
+        """
+        Ajusta la velocidad del proceso actualmente en ejecución
+
+        Args:
+            nueva_velocidad: Nueva velocidad (1-10)
+
+        Returns:
+            True si se ajustó correctamente, False si no hay proceso ejecutándose
+
+        Raises:
+            ValueError: Si la velocidad está fuera del rango
+        """
+        if not self.esta_ejecutando:
+            self.__log("⚠️ No hay ningún proceso en ejecución para ajustar velocidad")
+            return False
+
+        if not 1 <= nueva_velocidad <= 10:
+            raise ValueError("La velocidad debe estar entre 1 y 10")
+
+        # Ajustar velocidad del proceso actual
+        if self.__proceso_actual:
+            velocidad_anterior = self.__proceso_actual.ajustar_velocidad(nueva_velocidad)
+            self.__log(f"⚡ Velocidad ajustada: {velocidad_anterior} → {nueva_velocidad}")
+            return True
+
+        return False
+
+    def obtener_velocidad_actual(self) -> Optional[int]:
+        """
+        Obtiene la velocidad actual del proceso en ejecución
+
+        Returns:
+            Velocidad actual (1-10) o None si no hay proceso ejecutándose
+        """
+        if self.__proceso_actual:
+            return self.__proceso_actual.velocidad
+        return None
     
     # ========== MÉTODOS DE EJECUCIÓN ==========
     

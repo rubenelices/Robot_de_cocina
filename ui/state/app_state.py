@@ -38,6 +38,7 @@ class AppState:
     tiempo_inicio_paso: float = 0.0  # timestamp cuando empezó el paso
     duracion_paso_actual: float = 0.0  # duración total del paso en segundos
     progreso_paso_actual: float = 0.0  # 0-100%
+    velocidad_actual: int = 5  # velocidad de ejecución 1-10 (5 es normal)
 
     # === MODO MANUAL (NUEVA FUNCIONALIDAD) ===
     modo_seleccionado: Optional[str] = None  # "Picar", "Triturar", etc.
@@ -139,6 +140,9 @@ class AppState:
         proceso = self.get_proceso_actual()
         if not proceso:
             return None
+        # Para procesos personalizados, usar _nombre; para los básicos, el nombre de la clase
+        if hasattr(proceso, '_nombre'):
+            return proceso._nombre
         return proceso.__class__.__name__
 
     def is_modo_correcto(self) -> bool:

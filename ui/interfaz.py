@@ -19,6 +19,7 @@ class ThermomixColors:
     BG_SECONDARY = '#1a1f3a'
     BG_CARD = '#1e2640'
     BG_LCD = '#0d1117'
+    BG_INPUT = '#0d1117'  # Fondo para inputs y elementos interactivos
 
     CYAN = '#00d9ff'
     MAGENTA = '#ff006e'
@@ -386,6 +387,8 @@ def renderizar_vista_actual():
         renderizar_wizard()
     elif vista == 'config':
         renderizar_config()
+    elif vista == 'procesos_personalizados':
+        renderizar_procesos_personalizados()
     elif vista == 'celebracion':
         renderizar_celebracion()
     else:
@@ -434,7 +437,7 @@ def renderizar_dashboard():
                 )
 
         # Botones principales (siempre centrados)
-        with ui.row().classes('justify-center gap-6 mt-4'):
+        with ui.row().classes('justify-center gap-6 mt-4 flex-wrap'):
             crear_boton_grande(
                 icon='menu_book',
                 label='RECETAS',
@@ -454,6 +457,15 @@ def renderizar_dashboard():
             )
 
             crear_boton_grande(
+                icon='auto_awesome',
+                label='FUNCIONES',
+                color=COLORS.BTN_STOP,
+                border_class='btn-border-red',
+                on_click=lambda: navegar_a('procesos_personalizados'),
+                enabled=True
+            )
+
+            crear_boton_grande(
                 icon='settings',
                 label='CONFIG',
                 color=COLORS.BTN_SECONDARY,
@@ -461,6 +473,10 @@ def renderizar_dashboard():
                 on_click=lambda: navegar_a('config'),
                 enabled=True
             )
+
+        # Panel colapsable de pasos (solo si hay receta activa)
+        if app_state.receta_actual:
+            crear_panel_lista_pasos()
 
         # Panel de logs (centrado y más ancho)
         with ui.element('div').classes('log-screen').style('width: 100%; max-width: 800px; margin-top: 1.5rem;'):
@@ -470,6 +486,111 @@ def renderizar_dashboard():
             log_container = ui.column().classes('w-full gap-1')
             for log in logs[-10:]:
                 ui.label(log).style(f'color: {COLORS.CYAN}; font-size: 0.85rem;')
+
+
+def crear_panel_lista_pasos():
+    """Crea un panel colapsable con la lista completa de pasos de la receta"""
+    receta = app_state.receta_actual
+    if not receta:
+        return
+
+    total_pasos = receta.get_num_pasos()
+    paso_actual = app_state.paso_actual
+
+    with ui.expansion(
+        text='📋 VER TODOS LOS PASOS',
+        icon='list_alt'
+    ).classes('w-full').style(f'''
+        max-width: 800px;
+        background: {COLORS.BG_CARD};
+        border: 2px solid {COLORS.BORDER_PRIMARY};
+        border-radius: 12px;
+        margin-top: 1rem;
+    ''').props('dense header-class="text-cyan"'):
+        # Contenedor de la lista
+        with ui.column().classes('w-full gap-2 pa-2'):
+            for i, proceso in enumerate(receta.procesos):
+                es_actual = i == paso_actual
+                es_completado = i < paso_actual
+
+                # Determinar colores según estado
+                if es_completado:
+                    bg_color = 'rgba(0, 255, 136, 0.15)'
+                    border_color = COLORS.GREEN
+                    icon_color = COLORS.GREEN
+                    icon = '✓'
+                    text_color = COLORS.TEXT_SECONDARY
+                elif es_actual:
+                    bg_color = 'rgba(0, 217, 255, 0.2)'
+                    border_color = COLORS.CYAN
+                    icon_color = COLORS.CYAN
+                    icon = '▶'
+                    text_color = COLORS.TEXT_PRIMARY
+                else:
+                    bg_color = COLORS.BG_INPUT
+                    border_color = COLORS.BORDER_PRIMARY
+                    icon_color = COLORS.TEXT_SECONDARY
+                    icon = f'{i + 1}'
+                    text_color = COLORS.TEXT_SECONDARY
+
+                # Fila del paso
+                with ui.element('div').style(f'''
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.6rem 1rem;
+                    background: {bg_color};
+                    border: 2px solid {border_color};
+                    border-radius: 10px;
+                    {"box-shadow: 0 0 10px " + COLORS.CYAN + ";" if es_actual else ""}
+                '''):
+                    # Número/icono del paso
+                    ui.element('div').style(f'''
+                        min-width: 32px;
+                        height: 32px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: {border_color};
+                        color: {COLORS.BG_PRIMARY if es_completado or es_actual else COLORS.TEXT_PRIMARY};
+                        border-radius: 50%;
+                        font-weight: bold;
+                        font-size: 0.9rem;
+                    ''').text = icon
+
+                    # Descripción del paso
+                    with ui.column().classes('flex-grow gap-0'):
+                        ui.label(proceso.get_descripcion()).style(
+                            f'color: {text_color}; font-size: 0.9rem; font-weight: {"bold" if es_actual else "normal"};'
+                        )
+                        ui.label(f'⏱ {proceso.get_duracion()}s').style(
+                            f'color: {COLORS.TEXT_SECONDARY}; font-size: 0.75rem;'
+                        )
+
+                    # Badge de estado
+                    if es_completado:
+                        ui.label('Completado').style(
+                            f'color: {COLORS.GREEN}; font-size: 0.7rem; font-weight: bold; '
+                            f'background: rgba(0, 255, 136, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;'
+                        )
+                    elif es_actual:
+                        ui.label('Actual').style(
+                            f'color: {COLORS.CYAN}; font-size: 0.7rem; font-weight: bold; '
+                            f'background: rgba(0, 217, 255, 0.2); padding: 0.2rem 0.5rem; border-radius: 4px;'
+                        )
+
+            # Resumen al final
+            ui.element('hr').style(f'border: none; border-top: 1px solid {COLORS.BORDER_PRIMARY}; margin: 0.5rem 0;')
+            with ui.row().classes('w-full justify-between'):
+                ui.label(f'Total: {total_pasos} pasos').style(
+                    f'color: {COLORS.TEXT_SECONDARY}; font-size: 0.8rem;'
+                )
+                duracion_total = receta.get_duracion_total()
+                mins = duracion_total // 60
+                secs = duracion_total % 60
+                ui.label(f'Duración: {mins}m {secs}s' if mins > 0 else f'Duración: {secs}s').style(
+                    f'color: {COLORS.ORANGE}; font-size: 0.8rem; font-weight: bold;'
+                )
 
 
 def renderizar_panel_receta_activa():
@@ -498,7 +619,7 @@ def renderizar_panel_receta_activa():
                 ui.label(f'⏱ {proceso.get_duracion()}s').style(
                     f'font-size: 0.9rem; color: {COLORS.TEXT_SECONDARY};'
                 )
-                modo_recomendado = proceso.__class__.__name__
+                modo_recomendado = proceso._nombre if hasattr(proceso, '_nombre') else proceso.__class__.__name__
                 ui.label(f'💡 {modo_recomendado}').style(
                     f'font-size: 0.9rem; color: {COLORS.ORANGE};'
                 )
@@ -549,22 +670,40 @@ def renderizar_panel_receta_activa():
 
 
 def renderizar_selector_modos():
-    """Selector de modos de cocción"""
+    """Selector de modos de cocción (incluye procesos personalizados)"""
+    from models.procesos_basicos import obtener_todos_los_procesos, _procesos_personalizados_cache
+
     with ui.element('div').classes('lcd-screen').style('width: 100%; max-width: 700px; margin-top: 1rem;'):
         ui.label('SELECCIONA EL MODO:').style(
             f'font-size: 1rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem; text-align: center;'
         )
 
-        modos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
-        iconos = {'Picar': '🔪', 'Rallar': '🧀', 'Triturar': '⚡', 'Trocear': '✂️', 'Amasar': '🥖',
+        # Modos básicos predefinidos
+        modos_basicos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
+        iconos_basicos = {'Picar': '🔪', 'Rallar': '🧀', 'Triturar': '⚡', 'Trocear': '✂️', 'Amasar': '🥖',
                   'Hervir': '🔥', 'Sofreir': '🍳', 'Vapor': '💨', 'PrepararPure': '🥔', 'Pesar': '⚖️'}
 
-        modo_recomendado = app_state.receta_actual.procesos[app_state.paso_actual].__class__.__name__
+        # Obtener procesos personalizados
+        modos_personalizados = list(_procesos_personalizados_cache.keys())
+
+        # Combinar todos los modos
+        todos_modos = modos_basicos + modos_personalizados
+
+        proceso_actual = app_state.receta_actual.procesos[app_state.paso_actual]
+        modo_recomendado = proceso_actual._nombre if hasattr(proceso_actual, '_nombre') else proceso_actual.__class__.__name__
 
         with ui.grid(columns=5).classes('w-full gap-2'):
-            for modo in modos:
+            for modo in todos_modos:
                 is_selected = app_state.modo_seleccionado == modo
                 is_recommended = modo == modo_recomendado
+
+                # Obtener emoji del modo
+                if modo in iconos_basicos:
+                    emoji = iconos_basicos[modo]
+                elif modo in _procesos_personalizados_cache:
+                    emoji = _procesos_personalizados_cache[modo]['emoji']
+                else:
+                    emoji = '🔧'
 
                 btn_style = f'''
                     background: {COLORS.BG_CARD if not is_selected else "rgba(0, 217, 255, 0.3)"};
@@ -577,7 +716,7 @@ def renderizar_selector_modos():
 
                 with ui.element('div').style(btn_style).on('click', lambda m=modo: seleccionar_modo(m)):
                     with ui.column().classes('items-center gap-1'):
-                        ui.label(iconos.get(modo, '🔧')).style('font-size: 1.5rem;')
+                        ui.label(emoji).style('font-size: 1.5rem;')
                         ui.label(modo).style(f'font-size: 0.65rem; color: {COLORS.TEXT_PRIMARY}; font-weight: bold;')
 
 
@@ -651,6 +790,13 @@ def crear_panel_ejecucion_activa():
     """Crea el panel de ejecución con actualización en tiempo real"""
     proceso = app_state.receta_actual.procesos[app_state.paso_actual]
 
+    # Estado del timer para tracking de velocidad
+    timer_state = {
+        'progreso_acumulado': 0.0,  # Progreso acumulado (0-100)
+        'ultimo_tick': time.time(),
+        'velocidad_anterior': app_state.velocidad_actual
+    }
+
     with ui.element('div').classes('lcd-screen').style(
         f'border-color: {COLORS.LED_RUNNING}; box-shadow: 0 0 20px {COLORS.LED_RUNNING};'
     ):
@@ -676,6 +822,27 @@ def crear_panel_ejecucion_activa():
             f'font-size: 0.9rem; color: {COLORS.TEXT_SECONDARY}; text-align: center;'
         )
 
+        # Control de velocidad en tiempo real
+        with ui.column().classes('w-full items-center mt-3 gap-2'):
+            velocidad_label = ui.label(f'Velocidad: {app_state.velocidad_actual}').style(
+                f'font-size: 0.9rem; font-weight: bold; color: {COLORS.ORANGE};'
+            )
+
+            velocidad_slider = ui.slider(
+                min=1,
+                max=10,
+                value=app_state.velocidad_actual,
+                step=1
+            ).classes('w-3/4').props('color=orange label-always')
+
+            velocidad_slider.on('update:model-value', lambda e: ajustar_velocidad_proceso(
+                e.args, velocidad_label
+            ))
+
+            ui.label('1=Muy lento | 5=Normal | 10=Muy rápido').style(
+                f'font-size: 0.75rem; color: {COLORS.TEXT_SECONDARY}; text-align: center;'
+            )
+
         # Botón DETENER
         with ui.row().classes('w-full justify-center mt-4'):
             btn_detener = ui.button('DETENER', icon='stop', on_click=detener_ejecucion).style(
@@ -683,18 +850,38 @@ def crear_panel_ejecucion_activa():
                 f'font-size: 1.1rem; font-weight: bold; border-radius: 12px;'
             )
 
-        # Timer para actualizar el progreso
+        # Timer para actualizar el progreso con soporte para cambio de velocidad
         def actualizar_progreso():
             if not app_state.en_ejecucion:
                 timer.deactivate()
                 return
 
-            elapsed = time.time() - app_state.tiempo_inicio_paso
-            duracion = app_state.duracion_paso_actual
+            ahora = time.time()
+            delta = ahora - timer_state['ultimo_tick']
+            timer_state['ultimo_tick'] = ahora
 
-            if duracion > 0:
-                progreso = min((elapsed / duracion) * 100, 100)
-                restante = max(duracion - elapsed, 0)
+            duracion_base = app_state.duracion_paso_actual
+
+            if duracion_base > 0:
+                # Calcular factor de velocidad actual
+                # Velocidad 1 = 2x tiempo (más lento), Velocidad 5 = 1x, Velocidad 10 = 0.5x (más rápido)
+                velocidad = app_state.velocidad_actual
+                factor_velocidad = 2.0 - (velocidad - 1) * (1.5 / 9)  # Mapea 1->2.0, 10->0.5
+
+                # El progreso avanza más rápido con mayor velocidad
+                # delta_progreso = (tiempo transcurrido / duración ajustada) * 100
+                duracion_ajustada = duracion_base * factor_velocidad
+                delta_progreso = (delta / duracion_ajustada) * 100
+
+                timer_state['progreso_acumulado'] += delta_progreso
+                progreso = min(timer_state['progreso_acumulado'], 100)
+
+                # Calcular tiempo restante estimado con velocidad actual
+                progreso_restante = 100 - progreso
+                if progreso_restante > 0:
+                    restante = (progreso_restante / 100) * duracion_ajustada
+                else:
+                    restante = 0
 
                 app_state.progreso_paso_actual = progreso
 
@@ -704,15 +891,35 @@ def crear_panel_ejecucion_activa():
                 tiempo_label.text = f'Tiempo restante: {restante:.1f}s'
 
                 # Si se completó
-                if elapsed >= duracion:
+                if progreso >= 100:
                     timer.deactivate()
                     app_state.en_ejecucion = False
                     app_state.paso_completado = True
-                    agregar_log(f'Paso {app_state.paso_actual + 1} completado')
+                    agregar_log(f'✅ Paso {app_state.paso_actual + 1} completado')
                     ui.notify('¡Paso completado!', type='positive')
                     ui.navigate.to('/')
 
         timer = ui.timer(0.1, actualizar_progreso)
+
+
+def _ejecutar_paso_real():
+    """Ejecuta el paso realmente (después de validación)"""
+    receta = app_state.receta_actual
+    proceso = receta.procesos[app_state.paso_actual]
+    duracion = proceso.get_duracion()
+
+    # Configurar estado de ejecución
+    app_state.en_ejecucion = True
+    app_state.tiempo_inicio_paso = time.time()
+    app_state.duracion_paso_actual = duracion
+    app_state.progreso_paso_actual = 0
+    app_state.velocidad_actual = 5  # Resetear velocidad a normal
+
+    agregar_log(f'▶️ Ejecutando: {proceso.get_descripcion()} ({duracion}s)')
+    ui.notify(f'Ejecutando paso {app_state.paso_actual + 1}...', type='info')
+
+    # Recargar página para mostrar panel de ejecución
+    ui.navigate.to('/')
 
 
 def iniciar_ejecucion_paso():
@@ -727,19 +934,53 @@ def iniciar_ejecucion_paso():
 
     receta = app_state.receta_actual
     proceso = receta.procesos[app_state.paso_actual]
-    duracion = proceso.get_duracion()
 
-    # Configurar estado de ejecución
-    app_state.en_ejecucion = True
-    app_state.tiempo_inicio_paso = time.time()
-    app_state.duracion_paso_actual = duracion
-    app_state.progreso_paso_actual = 0
+    # Obtener el nombre real del modo recomendado
+    # Para procesos personalizados, usar _nombre; para los básicos, el nombre de la clase
+    if hasattr(proceso, '_nombre'):
+        modo_recomendado = proceso._nombre
+    else:
+        modo_recomendado = proceso.__class__.__name__
 
-    agregar_log(f'▶️ Ejecutando: {proceso.get_descripcion()} ({duracion}s)')
-    ui.notify(f'Ejecutando paso {app_state.paso_actual + 1}...', type='info')
+    modo_seleccionado = app_state.modo_seleccionado
 
-    # Recargar página para mostrar panel de ejecución
-    ui.navigate.to('/')
+    # Validar si el modo seleccionado coincide con el recomendado
+    if modo_seleccionado != modo_recomendado:
+        # Mostrar diálogo de advertencia
+        with ui.dialog() as dialog:
+            with ui.card().style(
+                f'background: {COLORS.BG_CARD}; border: 2px solid {COLORS.ORANGE}; '
+                f'border-radius: 16px; padding: 1.5rem; max-width: 400px;'
+            ):
+                ui.label('⚠️ Modo diferente al recomendado').style(
+                    f'color: {COLORS.ORANGE}; font-size: 1.3rem; font-weight: bold; '
+                    f'text-align: center; margin-bottom: 1rem;'
+                )
+
+                ui.label(f'Has seleccionado: {modo_seleccionado}').style(
+                    f'color: {COLORS.TEXT_PRIMARY}; font-size: 1rem; text-align: center;'
+                )
+                ui.label(f'La receta recomienda: {modo_recomendado}').style(
+                    f'color: {COLORS.CYAN}; font-size: 1rem; text-align: center; margin-bottom: 1rem;'
+                )
+
+                ui.label('Usar un modo diferente puede afectar el resultado de la receta.').style(
+                    f'color: {COLORS.TEXT_SECONDARY}; font-size: 0.9rem; text-align: center; margin-bottom: 1rem;'
+                )
+
+                with ui.row().classes('w-full justify-center gap-3'):
+                    ui.button('Cancelar', on_click=dialog.close).style(
+                        f'background: {COLORS.BTN_SECONDARY}; color: white; '
+                        f'padding: 0.5rem 1.5rem; border-radius: 8px;'
+                    )
+                    ui.button('Continuar', on_click=lambda: [dialog.close(), _ejecutar_paso_real()]).style(
+                        f'background: {COLORS.BTN_STOP}; color: white; '
+                        f'padding: 0.5rem 1.5rem; border-radius: 8px;'
+                    )
+        dialog.open()
+    else:
+        # Modo correcto, ejecutar directamente
+        _ejecutar_paso_real()
 
 
 def detener_ejecucion():
@@ -751,6 +992,39 @@ def detener_ejecucion():
     agregar_log(f'⏹️ Detenido por el usuario en {progreso_actual:.1f}%')
     ui.notify(f'Ejecución detenida en {progreso_actual:.1f}%', type='warning')
     ui.navigate.to('/')
+
+
+def ajustar_velocidad_proceso(nueva_velocidad, velocidad_label):
+    """Ajusta la velocidad del proceso en tiempo real"""
+    if not app_state.en_ejecucion:
+        return
+
+    if not app_state.receta_actual:
+        return
+
+    try:
+        velocidad = int(nueva_velocidad)
+
+        if not 1 <= velocidad <= 10:
+            return
+
+        # Obtener el proceso actual de la receta
+        proceso = app_state.receta_actual.procesos[app_state.paso_actual]
+
+        # Ajustar velocidad directamente en el proceso
+        velocidad_anterior = proceso.ajustar_velocidad(velocidad)
+
+        # Guardar en app_state para usar en el cálculo del timer
+        app_state.velocidad_actual = velocidad
+
+        # Actualizar UI
+        velocidad_label.text = f'Velocidad: {velocidad}'
+        agregar_log(f'⚡ Velocidad ajustada: {velocidad_anterior} → {velocidad}')
+
+    except ValueError:
+        ui.notify('Velocidad inválida', type='negative')
+    except Exception as e:
+        ui.notify(f'Error al ajustar velocidad: {str(e)}', type='negative')
 
 
 def siguiente_paso():
@@ -864,6 +1138,23 @@ def reiniciar_bd_usuario():
         navegar_a('dashboard')
     except Exception as e:
         ui.notify(f'Error al reiniciar BD: {str(e)}', type='negative')
+
+
+# ===== VISTA: PROCESOS PERSONALIZADOS =====
+def renderizar_procesos_personalizados():
+    """Editor de procesos personalizados"""
+    from ui.components.custom_process_editor import mostrar_editor_procesos_personalizados
+
+    with ui.row().classes('w-full items-center gap-3 mb-4'):
+        ui.button(icon='arrow_back', on_click=lambda: navegar_a('dashboard')).props('flat round').style(
+            f'color: {COLORS.CYAN};'
+        )
+        ui.label('FUNCIONES PERSONALIZADAS').style(
+            f'font-size: 1.3rem; font-weight: bold; color: {COLORS.TEXT_PRIMARY}; '
+            f'text-shadow: 0 0 10px {COLORS.PURPLE};'
+        )
+
+    mostrar_editor_procesos_personalizados()
 
 
 # ===== VISTA: BROWSER =====
@@ -1095,6 +1386,8 @@ def renderizar_wizard_paso2():
 
 def renderizar_wizard_paso3():
     """Paso 3: Procesos"""
+    from models.procesos_basicos import _procesos_personalizados_cache
+
     ui.label('Pasos de Cocción').style(
         f'font-size: 1.2rem; font-weight: bold; color: {COLORS.CYAN}; margin-bottom: 1rem;'
     )
@@ -1110,10 +1403,15 @@ def renderizar_wizard_paso3():
                     f'color: {COLORS.MAGENTA};'
                 )
 
-    # Selector de modo
+    # Selector de modo - incluye modos básicos + funciones personalizadas
     ui.label('Agregar paso:').style(f'color: {COLORS.TEXT_SECONDARY}; margin-top: 1rem;')
 
-    modos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
+    # Modos básicos
+    modos_basicos = ['Picar', 'Rallar', 'Triturar', 'Trocear', 'Amasar', 'Hervir', 'Sofreir', 'Vapor', 'PrepararPure', 'Pesar']
+
+    # Añadir funciones personalizadas
+    modos_personalizados = list(_procesos_personalizados_cache.keys())
+    modos = modos_basicos + modos_personalizados
 
     with ui.row().classes('w-full gap-2 items-end flex-wrap'):
         modo_select = ui.select(modos, value='Picar', label='Modo').props('outlined dark dense')

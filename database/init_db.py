@@ -64,17 +64,9 @@ def migrar_a_v2(db: DatabaseManager):
     - Tabla ingredientes (con FK a recetas_usuario)
     - Columna favorito en recetas_usuario
     - Columna fecha_creacion en recetas_usuario
+    - Tabla procesos_personalizados
     """
     print("\n🔄 Verificando migración a v2.0...")
-
-    # Verificar si ya existe la tabla ingredientes
-    resultado = db.ejecutar_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='ingredientes'"
-    )
-
-    if resultado:
-        print("✓ Base de datos ya está en v2.0")
-        return
 
     print("📦 Migrando base de datos a v2.0...")
 
@@ -141,7 +133,61 @@ def migrar_a_v2(db: DatabaseManager):
     except Exception as e:
         print(f"  ⚠ Error al crear tabla preferencias: {e}")
 
+    # Paso 5: Crear tabla de procesos personalizados
+    try:
+        db.ejecutar_script("""
+            CREATE TABLE IF NOT EXISTS procesos_personalizados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                emoji TEXT DEFAULT '⚙️',
+                duracion_base INTEGER NOT NULL,
+                parametros_defecto TEXT,
+                descripcion TEXT,
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                activo INTEGER DEFAULT 1
+            );
+        """)
+        print("  ✓ Tabla 'procesos_personalizados' creada")
+    except Exception as e:
+        print(f"  ⚠ Error al crear tabla procesos_personalizados: {e}")
+
     print("✅ Migración a v2.0 completada exitosamente\n")
+
+    # Paso 6: Cargar procesos personalizados de ejemplo (solo si la tabla está vacía)
+    try:
+        procesos = db.ejecutar_query("SELECT COUNT(*) as count FROM procesos_personalizados")
+        if procesos[0]['count'] == 0:
+            cargar_procesos_ejemplo(db)
+    except Exception as e:
+        print(f"  ⚠ Error al verificar procesos de ejemplo: {e}")
+
+
+def cargar_procesos_ejemplo(db: DatabaseManager):
+    """Carga algunos procesos personalizados de ejemplo"""
+    print("📦 Cargando procesos personalizados de ejemplo...")
+
+    procesos_ejemplo = [
+        ("Batir", "🥄", 8, "velocidad=alta", "Batir ingredientes hasta obtener una mezcla homogénea"),
+        ("Emulsionar", "💧", 6, "velocidad=media", "Mezclar líquidos inmiscibles formando una emulsión"),
+        ("Fermentar", "🌡️", 3600, "temperatura=28C", "Dejar reposar la masa para que fermente"),
+        ("Montar", "🍰", 10, "velocidad=alta", "Montar claras o nata hasta punto de nieve"),
+        ("Infusionar", "☕", 300, "temperatura=80C", "Extraer sabores mediante infusión en líquido caliente"),
+    ]
+
+    for nombre, emoji, duracion, parametros, descripcion in procesos_ejemplo:
+        try:
+            db.ejecutar_comando(
+                """
+                INSERT INTO procesos_personalizados
+                (nombre, emoji, duracion_base, parametros_defecto, descripcion)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (nombre, emoji, duracion, parametros, descripcion)
+            )
+        except Exception as e:
+            print(f"  ⚠ Error al insertar proceso '{nombre}': {e}")
+
+    print("  ✓ Procesos de ejemplo cargados\n")
 
 
 def necesita_datos_iniciales(db: DatabaseManager) -> bool:

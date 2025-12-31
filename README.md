@@ -17,7 +17,21 @@ Este proyecto es una simulación completa de un robot de cocina multifunción qu
 ### Funcionalidades del Robot
 
 - **Máquina de Estados**: Implementación robusta de una máquina de estados para el control del robot (apagado, encendido, ejecutando, detenido)
-- **10 Modos de Cocción**:
+
+- **🆕 Control de Velocidad en Tiempo Real**:
+  - Ajustar la velocidad de 1 a 10 mientras el proceso se ejecuta
+  - Velocidad 1 = Muy lento (2x tiempo), Velocidad 5 = Normal, Velocidad 10 = Muy rápido (0.5x tiempo)
+  - Recalcula dinámicamente el tiempo restante al cambiar la velocidad
+  - Interfaz con slider intuitivo durante la ejecución
+
+- **🆕 Editor de Funciones Personalizadas**:
+  - Crear tus propias funciones de cocina (Batir, Emulsionar, Fermentar, Montar, etc.)
+  - Configurar emoji, duración, parámetros y descripción personalizados
+  - Las funciones personalizadas aparecen automáticamente en el selector de modos
+  - Incluye 5 procesos de ejemplo precargados
+  - Persistencia en base de datos SQLite
+
+- **10 Modos de Cocción Básicos**:
   - Picar
   - Rallar
   - Triturar

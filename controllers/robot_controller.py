@@ -84,7 +84,27 @@ class RobotController:
         except Exception as e:
             print(f"Error al parar: {e}")
             return False
-    
+
+    def ajustar_velocidad(self, nueva_velocidad: int) -> bool:
+        """
+        Ajusta la velocidad del proceso en ejecución
+
+        Args:
+            nueva_velocidad: Nueva velocidad (1-10)
+
+        Returns:
+            True si se ajustó correctamente
+        """
+        try:
+            return self._robot.ajustar_velocidad(nueva_velocidad)
+        except Exception as e:
+            print(f"Error al ajustar velocidad: {e}")
+            return False
+
+    def obtener_velocidad_actual(self) -> Optional[int]:
+        """Obtiene la velocidad actual del proceso en ejecución"""
+        return self._robot.obtener_velocidad_actual()
+
     # ========== EJECUCIÓN CON HILOS ==========
     
     def ejecutar_proceso_async(self, proceso: ProcesoCocina, 

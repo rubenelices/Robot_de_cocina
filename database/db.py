@@ -102,8 +102,58 @@ class DatabaseManager:
     def tabla_existe(self, nombre_tabla: str) -> bool:
         """Verifica si una tabla existe"""
         query = """
-            SELECT name FROM sqlite_master 
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name=?
         """
         result = self.ejecutar_query(query, (nombre_tabla,))
         return len(result) > 0
+
+    # ========== OPERACIONES DE PROCESOS PERSONALIZADOS ==========
+
+    def obtener_procesos_personalizados(self) -> List[Dict]:
+        """Obtiene todos los procesos personalizados activos"""
+        query = """
+            SELECT * FROM procesos_personalizados
+            WHERE activo = 1
+            ORDER BY nombre
+        """
+        return self.ejecutar_query(query)
+
+    def insertar_proceso_personalizado(self, nombre: str, emoji: str,
+                                      duracion_base: int, parametros_defecto: str = "",
+                                      descripcion: str = "") -> int:
+        """Inserta un nuevo proceso personalizado"""
+        comando = """
+            INSERT INTO procesos_personalizados
+            (nombre, emoji, duracion_base, parametros_defecto, descripcion)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        return self.ejecutar_comando(comando,
+                                    (nombre, emoji, duracion_base, parametros_defecto, descripcion))
+
+    def actualizar_proceso_personalizado(self, id: int, nombre: str, emoji: str,
+                                        duracion_base: int, parametros_defecto: str = "",
+                                        descripcion: str = ""):
+        """Actualiza un proceso personalizado existente"""
+        comando = """
+            UPDATE procesos_personalizados
+            SET nombre = ?, emoji = ?, duracion_base = ?,
+                parametros_defecto = ?, descripcion = ?
+            WHERE id = ?
+        """
+        self.ejecutar_comando(comando,
+                            (nombre, emoji, duracion_base, parametros_defecto, descripcion, id))
+
+    def eliminar_proceso_personalizado(self, id: int):
+        """Marca un proceso personalizado como inactivo (soft delete)"""
+        comando = "UPDATE procesos_personalizados SET activo = 0 WHERE id = ?"
+        self.ejecutar_comando(comando, (id,))
+
+    def obtener_proceso_personalizado_por_nombre(self, nombre: str) -> Optional[Dict]:
+        """Obtiene un proceso personalizado por su nombre"""
+        query = """
+            SELECT * FROM procesos_personalizados
+            WHERE nombre = ? AND activo = 1
+        """
+        result = self.ejecutar_query(query, (nombre,))
+        return result[0] if result else None

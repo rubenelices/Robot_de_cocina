@@ -5,7 +5,7 @@ Gestiona las operaciones CRUD de recetas
 from typing import List, Optional
 from database.db import DatabaseManager
 from models.receta import Receta
-from models.procesos_basicos import PROCESOS_DISPONIBLES
+from models.procesos_basicos import PROCESOS_DISPONIBLES, _procesos_personalizados_cache
 from utils.exceptions import RecetaNoEncontradaException
 
 class RecetasController:
@@ -134,26 +134,27 @@ class RecetasController:
                                 parametros: str, duracion: int) -> int:
         """
         Agrega un proceso a una receta de usuario
-        
+
         Args:
             receta_id: ID de la receta
-            tipo_proceso: Tipo del proceso (Picar, Triturar, etc.)
+            tipo_proceso: Tipo del proceso (Picar, Triturar, Batir, etc.)
             parametros: Parámetros del proceso
             duracion: Duración en segundos
-        
+
         Returns:
             ID del proceso creado
-        
+
         Raises:
             ValueError: Si el tipo de proceso no existe
         """
-        if tipo_proceso not in PROCESOS_DISPONIBLES:
+        # Verificar si es un proceso básico o personalizado
+        if tipo_proceso not in PROCESOS_DISPONIBLES and tipo_proceso not in _procesos_personalizados_cache:
             raise ValueError(f"Tipo de proceso '{tipo_proceso}' no válido")
-        
+
         # Obtener el siguiente orden
         procesos = self._db.obtener_procesos_receta_usuario(receta_id)
         orden = len(procesos) + 1
-        
+
         return self._db.insertar_proceso_usuario(
             receta_id, tipo_proceso, parametros, orden, duracion
         )
@@ -265,12 +266,14 @@ class RecetasController:
     
     def obtener_tipos_procesos_disponibles(self) -> List[str]:
         """
-        Obtiene la lista de tipos de procesos disponibles
-        
+        Obtiene la lista de tipos de procesos disponibles (básicos + personalizados)
+
         Returns:
             Lista de nombres de procesos
         """
-        return list(PROCESOS_DISPONIBLES.keys())
+        todos = list(PROCESOS_DISPONIBLES.keys())
+        todos.extend(_procesos_personalizados_cache.keys())
+        return todos
     
     def obtener_info_receta(self, receta: Receta) -> dict:
         """
